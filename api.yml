@@ -1,0 +1,652 @@
+openapi: 3.1.0
+info:
+  title: BlueprintForge AI API
+  description: "Turns past recruiting implementations into evidence-backed industry\
+    \ blueprints. Errors return {\"message\": \"...\"}. Calls marked (LLM) use the\
+    \ configured OpenAI-compatible endpoint."
+  version: "0.3"
+servers:
+- url: http://localhost:8080
+  description: Generated server url
+paths:
+  /api/extractions/{docId}:
+    post:
+      tags:
+      - api
+      summary: "(LLM) Extract stages, roles and approval rules from one doc; cached\
+        \ unless force=true"
+      operationId: extract
+      parameters:
+      - name: docId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: force
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Extraction"
+  /api/docs:
+    get:
+      tags:
+      - api
+      summary: List all source docs
+      operationId: listDocs
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocMeta"
+    post:
+      tags:
+      - api
+      summary: Upload a source doc (.md/.txt as-is; .pdf/.docx/.pptx converted with
+        MarkItDown)
+      operationId: upload
+      parameters:
+      - name: docId
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: industry
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: geography
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: workflowType
+        in: query
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+              - file
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/DocMeta"
+  /api/blueprints/{industry}/{workflowType}:
+    get:
+      tags:
+      - api
+      summary: Get the saved blueprint
+      operationId: get
+      parameters:
+      - name: industry
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: workflowType
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Blueprint"
+    post:
+      tags:
+      - api
+      summary: (LLM) Generate the blueprint for a scenario
+      operationId: generate
+      parameters:
+      - name: industry
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: workflowType
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: force
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Blueprint"
+  /api/blueprints/{industry}/{workflowType}/gap-check:
+    post:
+      tags:
+      - api
+      summary: "(LLM) Compare a new customer's notes with the blueprint: MISSING /\
+        \ UNIQUE / ALIGNED"
+      operationId: gapCheck
+      parameters:
+      - name: industry
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: workflowType
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GapRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/GapReport"
+  /api/blueprints/{industry}/{workflowType}/items/{itemId}:
+    patch:
+      tags:
+      - api
+      summary: "Review an item: APPROVED, EDITED (needs editedDetail) or REJECTED"
+      operationId: review
+      parameters:
+      - name: industry
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: workflowType
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: itemId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Review"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Blueprint"
+  /api/groups:
+    get:
+      tags:
+      - api
+      summary: List scenarios (industry + workflow type) with doc counts
+      operationId: groups
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Group"
+  /api/eval/{industry}/{workflowType}:
+    get:
+      tags:
+      - api
+      summary: Score cached extractions against the answer key (no LLM)
+      operationId: eval
+      parameters:
+      - name: industry
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: workflowType
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EvalReport"
+  /api/docs/{docId}/text:
+    get:
+      tags:
+      - api
+      summary: Get a source doc's text (Markdown)
+      operationId: docText
+      parameters:
+      - name: docId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            text/plain;charset=UTF-8:
+              schema:
+                type: string
+  /api/blueprints/{industry}/{workflowType}/export.md:
+    get:
+      tags:
+      - api
+      summary: Export approved + edited items as Markdown
+      operationId: exportMd
+      parameters:
+      - name: industry
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: workflowType
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            text/markdown:
+              schema:
+                type: string
+  /api/blueprints/{industry}/{workflowType}/export.json:
+    get:
+      tags:
+      - api
+      summary: Export approved + edited items as JSON
+      operationId: exportJson
+      parameters:
+      - name: industry
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: workflowType
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Blueprint"
+  /api/blueprints/{industry}/{workflowType}/export.icims.json:
+    get:
+      tags:
+      - api
+      summary: Export approved + edited items as a MOCK iCIMS-style config (not an
+        official schema)
+      operationId: exportIcims
+      parameters:
+      - name: industry
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: workflowType
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties: {}
+components:
+  schemas:
+    ApprovalRule:
+      type: object
+      properties:
+        trigger:
+          type: string
+        approvers:
+          type: array
+          items:
+            type: string
+        quotes:
+          type: array
+          items:
+            type: string
+    DocMeta:
+      type: object
+      properties:
+        docId:
+          type: string
+        filename:
+          type: string
+        industry:
+          type: string
+        geography:
+          type: string
+        workflowType:
+          type: string
+    Extraction:
+      type: object
+      properties:
+        doc:
+          $ref: "#/components/schemas/DocMeta"
+        patterns:
+          $ref: "#/components/schemas/Patterns"
+        droppedQuotes:
+          type: integer
+          format: int32
+    Patterns:
+      type: object
+      properties:
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Stage"
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Role"
+        approvalRules:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApprovalRule"
+    Role:
+      type: object
+      properties:
+        name:
+          type: string
+        responsibilities:
+          type: array
+          items:
+            type: string
+        quotes:
+          type: array
+          items:
+            type: string
+    Stage:
+      type: object
+      properties:
+        name:
+          type: string
+        order:
+          type: integer
+          format: int32
+        quotes:
+          type: array
+          items:
+            type: string
+    Blueprint:
+      type: object
+      properties:
+        industry:
+          type: string
+        workflowType:
+          type: string
+        sourceDocIds:
+          type: array
+          items:
+            type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlueprintItem"
+        orderConflicts:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderConflict"
+    BlueprintItem:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum:
+          - STAGE
+          - ROLE
+          - APPROVAL_RULE
+        name:
+          type: string
+        aliases:
+          type: array
+          items:
+            type: string
+        detail:
+          type: string
+        typicalOrder:
+          type: number
+          format: double
+        support:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int32
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/Evidence"
+        geoSupport:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeoSupport"
+        status:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - EDITED
+          - REJECTED
+        editedDetail:
+          type: string
+        approvers:
+          type: array
+          items:
+            type: string
+    Evidence:
+      type: object
+      properties:
+        docId:
+          type: string
+        quote:
+          type: string
+    GeoSupport:
+      type: object
+      properties:
+        geography:
+          type: string
+        support:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int32
+    OrderConflict:
+      type: object
+      properties:
+        stageA:
+          type: string
+        stageB:
+          type: string
+        aFirstDocIds:
+          type: array
+          items:
+            type: string
+        bFirstDocIds:
+          type: array
+          items:
+            type: string
+    GapRequest:
+      type: object
+      properties:
+        text:
+          type: string
+        geography:
+          type: string
+    GapFinding:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - MISSING
+          - UNIQUE
+          - ALIGNED
+        kind:
+          type: string
+          enum:
+          - STAGE
+          - ROLE
+          - APPROVAL_RULE
+        name:
+          type: string
+        blueprintItemId:
+          type: string
+        peerSupport:
+          type: string
+        customerQuotes:
+          type: array
+          items:
+            type: string
+        message:
+          type: string
+    GapReport:
+      type: object
+      properties:
+        industry:
+          type: string
+        workflowType:
+          type: string
+        geography:
+          type: string
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/GapFinding"
+    Review:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - EDITED
+          - REJECTED
+        editedDetail:
+          type: string
+    Group:
+      type: object
+      properties:
+        industry:
+          type: string
+        workflowType:
+          type: string
+        docCount:
+          type: integer
+          format: int64
+    EvalReport:
+      type: object
+      properties:
+        industry:
+          type: string
+        workflowType:
+          type: string
+        docsEvaluated:
+          type: integer
+          format: int32
+        docsSkipped:
+          type: array
+          items:
+            type: string
+        scores:
+          type: array
+          items:
+            $ref: "#/components/schemas/KindScore"
+        quotesKept:
+          type: integer
+          format: int32
+        quotesDropped:
+          type: integer
+          format: int32
+    KindScore:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+          - STAGE
+          - ROLE
+          - APPROVAL_RULE
+        expected:
+          type: integer
+          format: int32
+        extracted:
+          type: integer
+          format: int32
+        matched:
+          type: integer
+          format: int32
+        precision:
+          type: number
+          format: double
+        recall:
+          type: number
+          format: double
+        missed:
+          type: array
+          items:
+            type: string
+        extra:
+          type: array
+          items:
+            type: string

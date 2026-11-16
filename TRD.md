@@ -165,6 +165,7 @@ The check runs without calling the LLM. It asserts that:
 | Stage-order variants | `Blueprint.orderConflicts` | Stage pairs that peers run in opposite orders, with doc IDs on each side |
 | Approvers per rule | `BlueprintItem.approvers` | Union of approvers named in the evidence, most frequent first |
 | Mock iCIMS config export | `GET .../export.icims.json` (`IcimsExport`) | Approved/edited items mapped to workflow statuses (keyword-binned), user roles, approval chains, country scoping, traceability. **Not an official iCIMS schema.** |
+| Swagger / OpenAPI | springdoc-openapi 3.2 → `/swagger-ui.html`, `/v3/api-docs(.yaml)`; committed copy in `api.yml` | Generated from the controllers, so it can't drift from the code; summaries come from `@Operation` |
 | Answer keys for every doc | `MANUAL_GOLD` in `tools/gen_synthetic_docs.py` | Accuracy now covers all 7 scenarios |
 
 ## 8. Non-functional requirements
