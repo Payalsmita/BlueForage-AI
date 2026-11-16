@@ -1,0 +1,567 @@
+{
+ "TECH-001": {
+  "STAGE": [
+   "Application Review",
+   "Recruiter Phone Screen",
+   "Online Coding Assessment",
+   "Technical Phone Interview",
+   "Virtual Onsite Loop",
+   "Hiring Committee Review",
+   "Reference Check",
+   "Background Check",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Engineering Manager",
+   "Interviewers",
+   "Hiring Committee",
+   "Compensation Partner"
+  ],
+  "APPROVAL_RULE": [
+   "Every requisition requires approval from the VP of Engineering and Finance.",
+   "Offers above the compensation band require approval from the VP of Engineering and the Compensation team.",
+   "Equity grants above guideline require CFO approval."
+  ]
+ },
+ "TECH-002": {
+  "STAGE": [
+   "Resume Screen",
+   "Recruiter Call",
+   "Take-Home Project",
+   "Technical Interview",
+   "Onsite Loop",
+   "Background Check",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Engineering Manager",
+   "Interviewers"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions need sign-off from the VP of Engineering and Finance.",
+   "Offers above the compensation band need approval from the VP of Engineering and the Compensation team.",
+   "Sign-on bonuses must be approved by Finance."
+  ]
+ },
+ "TECH-003": {
+  "STAGE": [
+   "Application Review",
+   "Recruiter Phone Screen",
+   "Online Coding Test",
+   "Technical Interview Round 1",
+   "Technical Interview Round 2",
+   "Hiring Manager Interview",
+   "HR Interview",
+   "Background Verification",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Hiring Manager",
+   "Interviewers",
+   "HR Business Partner"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require approval from the VP of Engineering and Finance.",
+   "Offers above the compensation band require approval from the VP of Engineering and the HR Head.",
+   "Joining bonuses require Finance approval."
+  ]
+ },
+ "TECH-004": {
+  "STAGE": [
+   "Application Review",
+   "Recruiter Screen",
+   "Pair Programming Session",
+   "System Design Interview",
+   "Team Fit Interview",
+   "Reference Check",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Engineering Manager",
+   "Interviewers"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require approval from the VP of Engineering and Finance.",
+   "Offers above the compensation band require approval from the VP of Engineering and the Compensation team.",
+   "Every hire must be notified to the Works Council before the offer is sent."
+  ]
+ },
+ "TECH-005": {
+  "STAGE": [
+   "Application Review",
+   "Recruiter Phone Screen",
+   "Coding Assessment",
+   "Virtual Onsite Loop",
+   "Hiring Committee Review",
+   "Background Check",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Engineering Manager",
+   "Hiring Committee",
+   "Compensation Partner"
+  ],
+  "APPROVAL_RULE": [
+   "Offers above the compensation band require approval from the VP of Engineering and the Compensation team.",
+   "Equity grants above guideline require CFO approval.",
+   "Sign-on bonuses require Finance approval."
+  ]
+ },
+ "FIN-001": {
+  "STAGE": [
+   "Application Review",
+   "Recruiter Phone Screen",
+   "Hiring Manager Interview",
+   "Client Role-Play Exercise",
+   "Panel Interview",
+   "Licensing Verification",
+   "Background Check",
+   "Fingerprinting",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Branch Manager",
+   "Regional Director",
+   "Compliance Officer",
+   "HR Business Partner"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require approval from the Regional Director and Finance.",
+   "Offers above the standard pay band require approval from the Regional Director and the HR Director.",
+   "Any draw or compensation guarantee requires approval from Finance and Compliance.",
+   "Candidates with disclosures on Form U4 require approval from the Chief Compliance Officer."
+  ]
+ },
+ "FIN-002": {
+  "STAGE": [
+   "Resume Screen",
+   "Recruiter Screen",
+   "Branch Manager Interview",
+   "Case Study Presentation",
+   "Background & Credit Check",
+   "Fingerprinting",
+   "FINRA Registration Check",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Branch Manager",
+   "Compliance Officer",
+   "HR Business Partner"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require approval from the Regional Director and Finance.",
+   "Offers above the standard pay band need approval from the Regional Director and the HR Director.",
+   "Candidates with Form U4 disclosures need Chief Compliance Officer approval."
+  ]
+ },
+ "FIN-003": {
+  "STAGE": [
+   "Application Review",
+   "Recruiter Phone Screen",
+   "Competency Interview",
+   "Role-Play Exercise",
+   "Panel Interview",
+   "Regulatory Reference Check",
+   "Credit and Criminal Record Check",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Hiring Manager",
+   "Compliance Officer",
+   "HR Business Partner"
+  ],
+  "APPROVAL_RULE": [
+   "Offers above the standard pay band require approval from the Regional Director and the HR Director.",
+   "A Senior Manager must certify the adviser as fit and proper before the start date."
+  ]
+ },
+ "FIN-004": {
+  "STAGE": [
+   "Application Review",
+   "Recruiter Phone Screen",
+   "Hiring Manager Interview",
+   "Client Role-Play Exercise",
+   "Licensing Verification",
+   "Background Check",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Branch Manager",
+   "Compliance Officer"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require approval from the Regional Director and Finance.",
+   "Any draw or compensation guarantee requires approval from Finance and Compliance."
+  ]
+ },
+ "FIN-005": {
+  "STAGE": [
+   "Application Review",
+   "Recruiter Screen",
+   "Branch Manager Interview",
+   "Panel Interview",
+   "CIRO Registration Verification",
+   "Criminal Record and Credit Check",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Branch Manager",
+   "Regional Director",
+   "Compliance Officer",
+   "HR Business Partner"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require approval from the Regional Director and Finance.",
+   "Offers above the standard pay band require approval from the Regional Director and the HR Director.",
+   "Candidates with regulatory disclosures require Chief Compliance Officer approval."
+  ]
+ },
+ "RET-001": {
+  "STAGE": [
+   "Online Application",
+   "Situational Judgement Assessment",
+   "Store Manager Interview",
+   "Background Check",
+   "Offer",
+   "I-9 Verification"
+  ],
+  "ROLE": [
+   "Store Manager",
+   "Assistant Store Manager",
+   "District Manager",
+   "HR Coordinator"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require District Manager approval.",
+   "Starting pay above the standard rate requires District Manager approval.",
+   "Rehiring a former employee requires the HR Coordinator to confirm rehire eligibility."
+  ]
+ },
+ "RET-002": {
+  "STAGE": [
+   "Online Application",
+   "Text-Message Pre-Screen",
+   "Group Interview",
+   "Store Manager Interview",
+   "Offer",
+   "Background Check"
+  ],
+  "ROLE": [
+   "Store Manager",
+   "District Manager",
+   "HR Coordinator"
+  ],
+  "APPROVAL_RULE": [
+   "Starting pay above the standard rate requires District Manager approval.",
+   "Seasonal requisitions above the store's seasonal headcount plan require District Manager approval."
+  ]
+ },
+ "RET-003": {
+  "STAGE": [
+   "Online Application",
+   "Assessment",
+   "Department Supervisor Interview",
+   "Store Manager Interview",
+   "Background Check",
+   "Drug Test",
+   "Offer"
+  ],
+  "ROLE": [
+   "Department Supervisor",
+   "Store Manager",
+   "District Manager",
+   "HR Coordinator"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require District Manager approval.",
+   "Starting pay above the standard rate requires District Manager approval."
+  ]
+ },
+ "RET-004": {
+  "STAGE": [
+   "Online Application",
+   "Store Manager Interview",
+   "Reference Check",
+   "Offer"
+  ],
+  "ROLE": [
+   "Store Manager",
+   "District Manager"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require District Manager approval.",
+   "Starting pay above the standard rate requires District Manager approval."
+  ]
+ },
+ "RET-005": {
+  "STAGE": [
+   "Online Application",
+   "Assessment",
+   "Store Manager Interview",
+   "Background Check",
+   "Drug Test",
+   "Offer",
+   "I-9 Verification"
+  ],
+  "ROLE": [
+   "Store Manager",
+   "District Manager",
+   "HR Coordinator"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require approval from the District Manager and Finance.",
+   "Starting pay above the standard rate requires District Manager approval."
+  ]
+ },
+ "AUTO-001": {
+  "STAGE": [
+   "Application Review",
+   "Recruiter Phone Screen",
+   "Mechanical Aptitude Test",
+   "Hands-On Skills Demonstration",
+   "Production Supervisor Interview",
+   "Background Check",
+   "Drug Screen",
+   "Pre-Employment Physical",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Production Supervisor",
+   "Plant HR Manager",
+   "Safety Coordinator"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require approval from the Plant Manager and Finance.",
+   "Shift premiums above policy require Plant HR Manager approval.",
+   "Offers for union-represented positions must be approved by Labor Relations."
+  ]
+ },
+ "AUTO-002": {
+  "STAGE": [
+   "Application Review",
+   "Recruiter Screen",
+   "Aptitude Test",
+   "Supervisor Interview",
+   "Medical Exam",
+   "Background Check",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Production Supervisor",
+   "Plant HR Manager"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require approval from the Plant Manager and Finance."
+  ]
+ },
+ "AUTO-003": {
+  "STAGE": [
+   "Application Review",
+   "Mechanical Aptitude Test",
+   "Plant Tour",
+   "Hands-On Skills Demonstration",
+   "Supervisor Interview",
+   "Drug Screen",
+   "Background Check",
+   "Offer"
+  ],
+  "ROLE": [
+   "Production Supervisor",
+   "Plant HR Manager",
+   "Labor Relations"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require approval from the Plant Manager and Finance.",
+   "Offers for union-represented positions must be approved by Labor Relations."
+  ]
+ },
+ "AUTO-004": {
+  "STAGE": [
+   "Application Review",
+   "Recruiter Screen",
+   "Technical Skills Test",
+   "Supervisor Interview",
+   "Occupational Medical Exam",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Production Supervisor",
+   "Plant HR Manager"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require approval from the Plant Manager and Finance.",
+   "Every hire requires Works Council approval before the offer is sent."
+  ]
+ },
+ "AUTO-005": {
+  "STAGE": [
+   "Application Review",
+   "Recruiter Phone Screen",
+   "Mechanical Aptitude Test",
+   "Hands-On Skills Demonstration",
+   "Supervisor Interview",
+   "Background Check",
+   "Drug Screen",
+   "Pre-Employment Physical",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Production Supervisor",
+   "Plant HR Manager",
+   "Safety Coordinator"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require approval from the Plant Manager and Finance.",
+   "Shift premiums above policy require Plant HR Manager approval."
+  ]
+ },
+ "HC-003": {
+  "STAGE": [
+   "Application Review",
+   "Recruiter Phone Screen",
+   "Nurse Manager Interview",
+   "Peer Interview",
+   "License Verification",
+   "Background Check",
+   "Drug Screen",
+   "Occupational Health Screening",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Nurse Manager",
+   "HR Generalist"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require approval from the Unit Director and Finance.",
+   "Shift differentials above policy require Chief Nursing Officer approval."
+  ]
+ },
+ "HC-004": {
+  "STAGE": [
+   "Application Review",
+   "Recruiter Screen",
+   "Clinical Skills Assessment",
+   "Nurse Manager Interview",
+   "License Verification",
+   "Background Check",
+   "Occupational Health Screening",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Nurse Manager",
+   "HR Generalist"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require approval from the Unit Director and Finance.",
+   "Sign-on bonuses require approval from the Chief Nursing Officer and Finance."
+  ]
+ },
+ "HC-005": {
+  "STAGE": [
+   "Application Review",
+   "Values-Based Interview",
+   "Clinical Scenario Assessment",
+   "NMC Registration Check",
+   "Enhanced DBS Check",
+   "Occupational Health Clearance",
+   "Reference Check",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Ward Manager"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require approval from the Divisional Director and Finance.",
+   "Recruitment and retention premiums require approval from the Director of Nursing."
+  ]
+ },
+ "HOSP-001": {
+  "STAGE": [
+   "Application Review",
+   "Recruiter Phone Screen",
+   "Front Office Manager Interview",
+   "Guest Scenario Role-Play",
+   "Background Check",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Front Office Manager",
+   "HR Coordinator"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require approval from the General Manager and Finance.",
+   "Starting pay above the standard rate requires General Manager approval."
+  ]
+ },
+ "HOSP-002": {
+  "STAGE": [
+   "Application Review",
+   "Video Interview",
+   "Front Office Manager Interview",
+   "Guest Scenario Role-Play",
+   "Background Check",
+   "Medical Fitness Test",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Front Office Manager",
+   "HR Coordinator"
+  ],
+  "APPROVAL_RULE": [
+   "Requisitions require approval from the General Manager and Finance.",
+   "Visa sponsorship requires HR Director approval."
+  ]
+ },
+ "HOSP-003": {
+  "STAGE": [
+   "Application Review",
+   "Front Office Manager Interview",
+   "Shadow Shift",
+   "Background Check",
+   "Offer"
+  ],
+  "ROLE": [
+   "Front Office Manager",
+   "HR Coordinator"
+  ],
+  "APPROVAL_RULE": [
+   "Starting pay above the standard rate requires General Manager approval."
+  ]
+ },
+ "HOSP-004": {
+  "STAGE": [
+   "Application Review",
+   "Recruiter Phone Screen",
+   "Front Office Manager Interview",
+   "Language Assessment",
+   "Reference Check",
+   "Offer"
+  ],
+  "ROLE": [
+   "Recruiter",
+   "Front Office Manager"
+  ],
+  "APPROVAL_RULE": [
+   "Starting pay above the standard rate requires General Manager approval."
+  ]
+ }
+}

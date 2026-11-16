@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BlueprintForge AI</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --ink: #1b2330; --muted: #5b6676; --line: #e2e6ec;
+    --brand: #1f4e8c; --brand-soft: #e8f0fb;
+    --ok: #1f7a4d; --ok-soft: #e6f4ec; --warn: #9a6400; --warn-soft: #fdf3e1; --bad: #b3261e; --bad-soft: #fbe9e7;
+    --bar: #2f6fbf; --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161c; --panel: #1a2029; --ink: #e6eaf0; --muted: #9aa5b4; --line: #2b3340;
+      --brand: #8ab4f8; --brand-soft: #1e2a3d;
+      --ok: #6fcf97; --ok-soft: #17291f; --warn: #f2c26b; --warn-soft: #2e2615; --bad: #f28b82; --bad-soft: #321b1a;
+      --bar: #5f9be6;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  header { background: var(--panel); border-bottom: 1px solid var(--line); padding: 14px 24px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; }
+  header h1 { font-size: 18px; margin: 0; }
+  header h1 span { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+  .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-left: auto; }
+  select, input, textarea, button { font: inherit; color: inherit; }
+  select, input[type=text], textarea { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+  textarea { width: 100%; min-height: 220px; resize: vertical; font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+  button { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--brand); }
+  button:disabled { opacity: .55; cursor: progress; }
+  button.primary { background: var(--brand); border-color: var(--brand); color: var(--panel); font-weight: 600; }
+  button.small { padding: 3px 9px; font-size: 12px; }
+  button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+  .status { color: var(--muted); font-size: 13px; min-height: 20px; padding: 8px 24px 0; }
+  .status.error { color: var(--bad); }
+  nav { display: flex; gap: 4px; padding: 12px 24px 0; border-bottom: 1px solid var(--line); }
+  nav button { border: none; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 8px 14px; color: var(--muted); }
+  nav button[aria-selected=true] { color: var(--ink); border-bottom-color: var(--brand); font-weight: 600; }
+  main { padding: 20px 24px 48px; max-width: 1400px; margin: 0 auto; }
+  .summary { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin-bottom: 16px; color: var(--muted); }
+  .summary a { color: var(--brand); }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; align-items: start; }
+  h2 { font-size: 15px; margin: 0 0 10px; }
+  h2 small { color: var(--muted); font-weight: 400; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px; }
+  .card.rejected { opacity: .55; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .id { font: 12px ui-monospace, Menlo, monospace; color: var(--muted); }
+  .name { font-weight: 600; }
+  .pill { font-size: 11px; font-weight: 600; letter-spacing: .02em; padding: 2px 8px; border-radius: 99px; background: var(--line); color: var(--muted); }
+  .pill.APPROVED, .pill.ALIGNED { background: var(--ok-soft); color: var(--ok); }
+  .pill.EDITED { background: var(--brand-soft); color: var(--brand); }
+  .pill.REJECTED, .pill.MISSING { background: var(--bad-soft); color: var(--bad); }
+  .pill.outlier, .pill.UNIQUE { background: var(--warn-soft); color: var(--warn); }
+  .row .pill:last-child { margin-left: auto; }
+  .conf { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px; font-size: 12px; color: var(--muted); }
+  .bar { flex: 1; height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--bar); }
+  .geo { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+  .geo span { font-size: 11px; border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; color: var(--muted); }
+  .geo span.full { border-color: var(--bar); color: var(--ink); }
+  .geo span.none { text-decoration: line-through; opacity: .6; }
+  .aliases { font-size: 12px; color: var(--muted); }
+  .detail { margin: 6px 0; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  details { margin-top: 6px; }
+  summary { cursor: pointer; color: var(--brand); font-size: 12px; }
+  .ev { list-style: none; padding: 0; margin: 6px 0 0; }
+  .ev li { font-size: 12.5px; border-left: 3px solid var(--line); padding: 2px 8px; margin-bottom: 6px; }
+  .ev button { border: none; background: none; padding: 0; color: var(--brand); font-size: 12px; text-decoration: underline; }
+  .empty { background: var(--panel); border: 1px dashed var(--line); border-radius: var(--radius); padding: 40px; text-align: center; color: var(--muted); }
+  .gap-form { display: grid; grid-template-columns: 1fr; gap: 10px; max-width: 900px; margin-bottom: 20px; }
+  table { border-collapse: collapse; width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .big { font-size: 26px; font-weight: 700; }
+  .stats { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; min-width: 160px; }
+  .stat div:last-child { color: var(--muted); font-size: 12px; }
+  dialog { border: 1px solid var(--line); border-radius: var(--radius); padding: 0; width: min(820px, 94vw); background: var(--panel); color: var(--ink); }
+  dialog::backdrop { background: rgb(0 0 0 / .45); }
+  dialog header { position: sticky; top: 0; }
+  dialog pre { margin: 0; padding: 16px 20px; white-space: pre-wrap; font: 13px/1.55 ui-monospace, Menlo, monospace; max-height: 70vh; overflow: auto; }
+  mark { background: #ffe58a; color: #1b2330; border-radius: 3px; }
+  .hidden { display: none !important; }
+  @media (max-width: 640px) { header, nav, main, .status { padding-left: 16px; padding-right: 16px; } .controls { margin-left: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>BlueprintForge AI <span>evidence-backed industry blueprints</span></h1>
+  <div class="controls">
+    <label for="group" class="hidden">Scenario</label>
+    <select id="group" aria-label="Scenario"></select>
+    <label class="row" style="font-size:13px;color:var(--muted)"><input type="checkbox" id="force"> re-extract</label>
+    <button id="generate" class="primary">Generate blueprint</button>
+  </div>
+</header>
+<div id="status" class="status" role="status" aria-live="polite"></div>
+<nav role="tablist">
+  <button role="tab" data-tab="blueprint" aria-selected="true">Blueprint</button>
+  <button role="tab" data-tab="gap" aria-selected="false">Gap check</button>
+  <button role="tab" data-tab="eval" aria-selected="false">Accuracy</button>
+</nav>
+<main>
+  <section id="tab-blueprint"></section>
+
+  <section id="tab-gap" class="hidden">
+    <div class="gap-form">
+      <p style="margin:0;color:var(--muted)">Paste a new customer's requirements or meeting notes. They are compared with the current blueprint (rejected items excluded).</p>
+      <div class="row">
+        <label>Customer country <input type="text" id="gap-geo" size="5" placeholder="e.g. US"></label>
+        <button id="gap-sample" class="small">Load sample customer</button>
+      </div>
+      <textarea id="gap-text" aria-label="Customer requirements"></textarea>
+      <div><button id="gap-run" class="primary">Check against blueprint</button></div>
+    </div>
+    <div id="gap-out"></div>
+  </section>
+
+  <section id="tab-eval" class="hidden">
+    <p style="color:var(--muted);margin-top:0">Compares the AI's extractions with the answer key from <code>tools/gen_synthetic_docs.py</code>. No AI calls; generate the blueprint first.</p>
+    <button id="eval-run" class="primary">Run accuracy check</button>
+    <div id="eval-out" style="margin-top:16px"></div>
+  </section>
+</main>
+
+<dialog id="doc">
+  <header><strong id="doc-title"></strong><button class="small" style="margin-left:auto" onclick="this.closest('dialog').close()">Close</button></header>
+  <pre id="doc-body"></pre>
+</dialog>
+
+<script>
+const $ = s => document.querySelector(s);
+const KIND = { STAGE: 'Hiring stages', ROLE: 'Roles', APPROVAL_RULE: 'Approval rules' };
+const SAMPLES = { airlines: { file: 'samples/airlines.md', geo: 'CA' }, technology: { file: 'samples/technology.md', geo: 'US' } };
+let groups = [], bp = null;
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pct = x => Math.round(x * 100) + '%';
+const cur = () => groups[+$('#group').value];
+const path = () => `${encodeURIComponent(cur().industry)}/${encodeURIComponent(cur().workflowType)}`;
+
+async function api(url, opts = {}) {
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { msg = (await res.json()).message || msg; } catch {}
+    const err = new Error(msg); err.status = res.status; throw err;
+  }
+  return res.headers.get('content-type')?.includes('json') ? res.json() : res.text();
+}
+
+function status(msg, error = false) { const el = $('#status'); el.textContent = msg; el.classList.toggle('error', error); }
+
+async function busy(btn, label, fn) {
+  const t0 = Date.now(), old = btn.textContent;
+  btn.disabled = true;
+  const tick = setInterval(() => status(`${label}… ${Math.round((Date.now() - t0) / 1000)}s`), 1000);
+  status(`${label}…`);
+  try { await fn(); status(`Done in ${Math.round((Date.now() - t0) / 1000)}s.`); }
+  catch (e) { status(e.message, true); }
+  finally { clearInterval(tick); btn.disabled = false; btn.textContent = old; }
+}
+
+// ---------- blueprint ----------
+async function loadBlueprint() {
+  $('#eval-out').innerHTML = ''; $('#gap-out').innerHTML = '';
+  try { bp = await api(`/api/blueprints/${path()}`); status(''); }
+  catch (e) { bp = null; if (e.status !== 404) status(e.message, true); }
+  renderBlueprint();
+}
+
+function renderBlueprint() {
+  const el = $('#tab-blueprint');
+  if (!bp) {
+    el.innerHTML = `<div class="empty">No blueprint yet for <b>${esc(cur().industry)} / ${esc(cur().workflowType)}</b> (${cur().docCount} source implementations).<br>Click <b>Generate blueprint</b>.</div>`;
+    return;
+  }
+  const counts = bp.items.reduce((a, i) => (a[i.status] = (a[i.status] || 0) + 1, a), {});
+  el.innerHTML = `<div class="summary">
+      <span><b>${bp.items.length}</b> items from <b>${bp.sourceDocIds.length}</b> implementations</span>
+      <span>${['APPROVED', 'EDITED', 'PENDING', 'REJECTED'].map(s => `${s.toLowerCase()} ${counts[s] || 0}`).join(' · ')}</span>
+      <span>Export (approved + edited): <a href="/api/blueprints/${path()}/export.md" target="_blank">Markdown</a> · <a href="/api/blueprints/${path()}/export.json" target="_blank">JSON</a></span>
+    </div>
+    <div class="cols">${Object.keys(KIND).map(k => {
+      const items = bp.items.filter(i => i.kind === k);
+      return `<div><h2>${KIND[k]} <small>${items.length}</small></h2>${items.map(card).join('')}</div>`;
+    }).join('')}</div>`;
+}
+
+function card(i) {
+  const share = i.support / i.total;
+  const text = i.status === 'EDITED' ? i.editedDetail : i.detail;
+  return `<div class="card ${i.status === 'REJECTED' ? 'rejected' : ''}" data-id="${esc(i.id)}">
+    <div class="row"><span class="id">${esc(i.id)}</span><span class="name">${esc(i.name)}</span>
+      ${i.support === 1 && i.total > 2 ? '<span class="pill outlier" title="Seen at only one company">unique practice</span>' : ''}
+      <span class="pill ${i.status}">${i.status.toLowerCase()}</span></div>
+    <div class="conf"><div class="bar" role="img" aria-label="${pct(share)}"><i style="width:${pct(share)}"></i></div>${i.support}/${i.total} implementations</div>
+    <div class="geo">${(i.geoSupport || []).map(g => `<span class="${g.support === g.total ? 'full' : g.support === 0 ? 'none' : ''}" title="${g.support} of ${g.total} in ${esc(g.geography)}">${esc(g.geography)} ${g.support}/${g.total}</span>`).join('')}</div>
+    ${i.aliases.length ? `<div class="aliases">Also called: ${i.aliases.map(esc).join(', ')}</div>` : ''}
+    <div class="detail">${esc(text)}</div>
+    <div class="actions">
+      <button class="small" data-act="APPROVED">Approve</button>
+      <button class="small" data-act="edit">Edit</button>
+      <button class="small" data-act="REJECTED">Reject</button>
+    </div>
+    <details><summary>Evidence (${i.evidence.length})</summary><ul class="ev">${i.evidence.map(evidence).join('')}</ul></details>
+  </div>`;
+}
+
+const evidence = e => `<li>“${esc(e.quote)}” — <button data-doc="${esc(e.docId)}" data-quote="${esc(e.quote)}">${esc(e.docId)}</button></li>`;
+
+async function review(id, newStatus, editedDetail) {
+  try { bp = await api(`/api/blueprints/${path()}/items/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus, editedDetail }) }); renderBlueprint(); }
+  catch (e) { status(e.message, true); }
+}
+
+$('#tab-blueprint').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.doc) return openDoc(b.dataset.doc, b.dataset.quote);
+  const cardEl = b.closest('.card'), id = cardEl.dataset.id, item = bp.items.find(i => i.id === id);
+  if (b.dataset.act === 'edit') {
+    const d = cardEl.querySelector('.detail');
+    d.innerHTML = `<textarea style="min-height:80px" aria-label="Edited description">${esc(item.status === 'EDITED' ? item.editedDetail : item.detail)}</textarea>`;
+    b.parentElement.innerHTML = '<button class="small primary" data-act="save">Save</button><button class="small" data-act="cancel">Cancel</button>';
+    d.querySelector('textarea').focus();
+  } else if (b.dataset.act === 'save') review(id, 'EDITED', cardEl.querySelector('textarea').value);
+  else if (b.dataset.act === 'cancel') renderBlueprint();
+  else if (b.dataset.act) review(id, b.dataset.act);
+});
+
+// ---------- source doc viewer ----------
+async function openDoc(docId, quote) {
+  try {
+    const text = await api(`/api/docs/${encodeURIComponent(docId)}/text`);
+    $('#doc-title').textContent = docId;
+    const body = $('#doc-body'); body.textContent = '';
+    const at = quote ? text.toLowerCase().indexOf(quote.toLowerCase()) : -1;
+    if (at < 0) body.textContent = text;
+    else {
+      const m = document.createElement('mark'); m.textContent = text.slice(at, at + quote.length);
+      body.append(text.slice(0, at), m, text.slice(at + quote.length));
+    }
+    $('#doc').showModal();
+    body.querySelector('mark')?.scrollIntoView({ block: 'center' });
+  } catch (e) { status(e.message, true); }
+}
+
+// ---------- gap check ----------
+$('#gap-sample').onclick = async () => {
+  const s = SAMPLES[cur().industry];
+  if (!s) return status(`No sample customer for ${cur().industry}; paste your own notes.`);
+  $('#gap-text').value = await api(s.file); $('#gap-geo').value = s.geo;
+};
+
+$('#gap-run').onclick = e => busy(e.target, 'Checking customer against blueprint', async () => {
+  const r = await api(`/api/blueprints/${path()}/gap-check`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: $('#gap-text').value, geography: $('#gap-geo').value }) });
+  const by = t => r.findings.filter(f => f.type === t);
+  const sec = (t, title, hint) => `<div><h2>${title} <small>${by(t).length}</small></h2><p style="color:var(--muted);margin-top:0;font-size:12px">${hint}</p>
+    ${by(t).map(f => `<div class="card"><div class="row"><span class="id">${esc(f.blueprintItemId || 'new')}</span><span class="name">${esc(f.name)}</span><span class="pill ${t}">${esc(KIND[f.kind])}</span></div>
+      <div class="conf">peers: ${esc(f.peerSupport)}</div><div class="detail">${esc(f.message)}</div>
+      ${f.customerQuotes.length ? `<ul class="ev">${f.customerQuotes.map(q => `<li>“${esc(q)}”</li>`).join('')}</ul>` : ''}</div>`).join('') || '<div class="empty" style="padding:16px">None</div>'}</div>`;
+  $('#gap-out').innerHTML = `<div class="cols">
+    ${sec('MISSING', 'Missing', 'Common among peers (50%+, country-aware) but absent from this customer.')}
+    ${sec('UNIQUE', 'Unique to this customer', 'Not seen at any peer. Confirm it is intentional.')}
+    ${sec('ALIGNED', 'Aligned', 'Matches the industry blueprint.')}</div>`;
+});
+
+// ---------- accuracy ----------
+$('#eval-run').onclick = e => busy(e.target, 'Scoring extractions', async () => {
+  const r = await api(`/api/eval/${path()}`);
+  const all = r.scores.reduce((a, s) => ({ m: a.m + s.matched, x: a.x + s.extracted, e: a.e + s.expected }), { m: 0, x: 0, e: 0 });
+  const quoteRate = r.quotesKept / Math.max(1, r.quotesKept + r.quotesDropped);
+  const list = (title, xs) => xs.length ? `<details><summary>${title} (${xs.length})</summary><ul class="ev">${xs.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : '';
+  $('#eval-out').innerHTML = `<div class="stats">
+      <div class="stat"><div class="big">${pct(all.m / Math.max(1, all.e))}</div><div>recall: items in the answer key that were found</div></div>
+      <div class="stat"><div class="big">${pct(all.m / Math.max(1, all.x))}</div><div>precision: extracted items that are correct</div></div>
+      <div class="stat"><div class="big">${pct(quoteRate)}</div><div>quotes found verbatim in source (${r.quotesDropped} dropped)</div></div>
+      <div class="stat"><div class="big">${r.docsEvaluated}</div><div>docs scored${r.docsSkipped.length ? ` · skipped ${r.docsSkipped.map(esc).join(', ')}` : ''}</div></div>
+    </div>
+    <table><thead><tr><th>Kind</th><th>Expected</th><th>Extracted</th><th>Matched</th><th>Precision</th><th>Recall</th><th></th></tr></thead><tbody>
+    ${r.scores.map(s => `<tr><td>${KIND[s.kind]}</td><td class="num">${s.expected}</td><td class="num">${s.extracted}</td><td class="num">${s.matched}</td>
+      <td class="num">${pct(s.precision)}</td><td class="num">${pct(s.recall)}</td><td>${list('missed', s.missed)}${list('extra', s.extra)}</td></tr>`).join('')}
+    </tbody></table>`;
+});
+
+// ---------- tabs, init ----------
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.setAttribute('aria-selected', x === b));
+  ['blueprint', 'gap', 'eval'].forEach(t => $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+});
+
+$('#generate').onclick = e => busy(e.target, `Generating blueprint from ${cur().docCount} implementations`, async () => {
+  bp = await api(`/api/blueprints/${path()}?force=${$('#force').checked}`, { method: 'POST' });
+  renderBlueprint();
+});
+
+$('#group').onchange = loadBlueprint;
+
+(async () => {
+  try {
+    groups = await api('/api/groups');
+    $('#group').innerHTML = groups.map((g, i) => `<option value="${i}">${esc(g.industry)} · ${esc(g.workflowType)} (${g.docCount})</option>`).join('');
+    loadBlueprint();
+  } catch (e) { status('Cannot reach the backend: ' + e.message, true); }
+})();
+</script>
+</body>
+</html>
