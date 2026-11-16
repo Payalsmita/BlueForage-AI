@@ -3,19 +3,91 @@
 BlueprintForge AI learns from the company's past hiring setups across every industry. It spots the patterns each sector repeats — the stages, roles, and approval rules — and turns them into ready-made templates consultants can quickly adjust for any new customer. Instead of starting every project from a blank page, teams start from proven blueprints — saving weeks of work, no matter the sector.
 See [IDEA_BRIEF.md](IDEA_BRIEF.md), [PRD.md](PRD.md), [TRD.md](TRD.md).
 
-## Run the backend
+## How to run
 
-Requires Java 21+ and Maven (`brew install maven`).
+### 1. Prerequisites
+
+| Need | Check | Install |
+|---|---|---|
+| Java 21 or newer | `java -version` | macOS: `brew install openjdk@21` · Windows/Linux: [Adoptium Temurin 21](https://adoptium.net) |
+| An LLM API key | — | [OpenRouter](https://openrouter.ai/keys) (default), or any OpenAI-compatible endpoint |
+| Python 3 *(optional)* | `python3 --version` | only needed to regenerate the synthetic docs |
+
+Maven is **not** required: the repo includes the Maven wrapper (`backend/mvnw`), which downloads Maven on first run.
+
+> **macOS + Homebrew:** Homebrew's Java isn't on your PATH by default. If `java -version` says
+> *"Unable to locate a Java Runtime"*, run this once per terminal (or add it to `~/.zshrc`):
+> ```bash
+> export JAVA_HOME="$(brew --prefix openjdk@21)"
+> export PATH="$JAVA_HOME/bin:$PATH"
+> ```
+
+### 2. Get the code and add your API key
 
 ```bash
-cp .env.example .env                             # then put your key in .env (gitignored)
-cd backend && (set -a; . ../.env; set +a; mvn spring-boot:run)   # UI + API at http://localhost:8080
-mvn test                                        # deterministic checks, no LLM needed
+git clone https://github.com/Payalsmita/BlueForage-AI.git
+cd BlueForage-AI
+cp .env.example .env
 ```
 
-Default model: `deepseek/deepseek-v4.1-flash-1017` via OpenRouter. Any OpenAI-compatible endpoint works if the
-model supports `response_format: json_schema`. Measured on this model: a 5-doc scenario takes ~45-100 s from cold, and
-seconds once extractions are cached in `data/` (use *re-extract* to refresh).
+Open `.env` and paste your key after `LLM_API_KEY=`. The file is gitignored, so never commit it.
+
+```dotenv
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_API_KEY=sk-or-v1-...
+LLM_MODEL=deepseek/deepseek-v4.1-flash-1017
+```
+
+You can use another OpenAI-compatible provider (OpenAI, Azure OpenAI, a local vLLM or LiteLLM, ...) by changing these three values.
+The model **must support structured outputs** (`response_format: json_schema`).
+
+### 3. Start the app
+
+**macOS / Linux**
+
+```bash
+cd backend
+set -a; . ../.env; set +a        # load .env into this terminal
+./mvnw spring-boot:run
+```
+
+**Windows (PowerShell)**
+
+```powershell
+cd backend
+Get-Content ..\.env | Where-Object { $_ -match '=' } | ForEach-Object { $k, $v = $_ -split '=', 2; Set-Item "env:$k" $v }
+.\mvnw.cmd spring-boot:run
+```
+
+Wait for `Started BlueprintforgeApplication`, then open **http://localhost:8080**.
+
+### 4. First run
+
+1. Pick a scenario in the dropdown, for example **airlines · pilot**, then click **Generate blueprint**.
+   The first run calls the LLM for every source doc and takes **~1–2 minutes**. Results are cached in `data/`, so later loads are instant.
+   Tick **re-extract** to force fresh LLM calls.
+2. Go to **Gap check**, click **Load sample customer**, then click **Check against blueprint**.
+3. Go to **Accuracy** and click **Run accuracy check**. This works on technology, finance, retail, automotive, healthcare and hospitality.
+
+### 5. Run the tests (no API key needed)
+
+```bash
+cd backend
+./mvnw test
+```
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `Unable to locate a Java Runtime` / `JAVA_HOME is not set` | Install Java 21+ and set `JAVA_HOME` (see the macOS note above) |
+| UI shows **"Set LLM_API_KEY and LLM_MODEL"** | `.env` wasn't loaded: run the `set -a; . ../.env; set +a` line in the **same terminal** before `./mvnw spring-boot:run` |
+| `401` / `Unauthorized` from the LLM | Wrong or expired key in `.env` |
+| Error mentioning `response_format` or `json_schema` | The model doesn't support structured outputs. Pick one that does. |
+| `Port 8080 already in use` | Stop the other process, or run `./mvnw spring-boot:run -Dspring-boot.run.arguments=--server.port=8081` |
+| A blueprint looks wrong after you edit docs | Tick **re-extract** and generate again, or delete the `data/` folder |
+
+Measured on the default model: a 5-doc scenario takes ~45–100 s from cold, and seconds once cached.
 
 ## Demo flow (UI)
 
