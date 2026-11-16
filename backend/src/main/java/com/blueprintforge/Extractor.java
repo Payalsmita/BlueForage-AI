@@ -90,7 +90,7 @@ public class Extractor {
 
     static String norm(String s) {
         return s.replaceAll("[‘’]", "'").replaceAll("[“”]", "\"")
-                .replaceAll("[*_`|#]", "") // markdown noise the model may drop
+                .replaceAll("[*_`|#\\\\]", "") // markdown noise (incl. MarkItDown \\* escapes) the model may drop
                 .replaceAll("\\s+", " ").trim().toLowerCase();
     }
 

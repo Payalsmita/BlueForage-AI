@@ -11,6 +11,8 @@ See [IDEA_BRIEF.md](IDEA_BRIEF.md), [PRD.md](PRD.md), [TRD.md](TRD.md).
 |---|---|---|
 | Java 21 or newer | `java -version` | macOS: `brew install openjdk@21` · Windows/Linux: [Adoptium Temurin 21](https://adoptium.net) |
 | An LLM API key | — | [OpenRouter](https://openrouter.ai/keys) (default), or any OpenAI-compatible endpoint |
+| MarkItDown *(for PDF/DOCX/PPTX uploads)* | `markitdown --version` | `uv tool install 'markitdown[pdf,docx,pptx]'` or `pipx install 'markitdown[pdf,docx,pptx]'` |
+| Node.js 20+ *(only to change the UI)* | `node --version` | [nodejs.org](https://nodejs.org). The built UI is already committed. |
 | Python 3 *(optional)* | `python3 --version` | only needed to regenerate the synthetic docs |
 
 Maven is **not** required: the repo includes the Maven wrapper (`backend/mvnw`), which downloads Maven on first run.
@@ -67,7 +69,20 @@ Wait for `Started BlueprintforgeApplication`, then open **http://localhost:8080*
    The first run calls the LLM for every source doc and takes **~1–2 minutes**. Results are cached in `data/`, so later loads are instant.
    Tick **re-extract** to force fresh LLM calls.
 2. Go to **Gap check**, click **Load sample customer**, then click **Check against blueprint**.
-3. Go to **Accuracy** and click **Run accuracy check**. This works on technology, finance, retail, automotive, healthcare and hospitality.
+3. Go to **Accuracy** and click **Run accuracy check**. Every scenario has an answer key.
+4. Go to **Sources** to see the docs behind a scenario, or upload a new one (.md, .txt, .pdf, .docx, .pptx).
+   PDF, DOCX and PPTX files are converted to Markdown with MarkItDown. Click **Generate blueprint** again afterwards.
+
+### Working on the UI (React)
+
+The UI source is in `frontend/` (React + Vite). The backend serves the built copy from `backend/src/main/resources/static`.
+
+```bash
+cd frontend
+npm install
+npm run dev      # http://localhost:5173, live reload; /api is proxied to the backend on :8080
+npm run build    # writes the production build into backend/src/main/resources/static (commit it)
+```
 
 ### 5. Run the tests (no API key needed)
 
@@ -85,6 +100,7 @@ cd backend
 | `401` / `Unauthorized` from the LLM | Wrong or expired key in `.env` |
 | Error mentioning `response_format` or `json_schema` | The model doesn't support structured outputs. Pick one that does. |
 | `Port 8080 already in use` | Stop the other process, or run `./mvnw spring-boot:run -Dspring-boot.run.arguments=--server.port=8081` |
+| Upload says **"MarkItDown not found"** | Install it (see Prerequisites) or set `MARKITDOWN_CMD=/full/path/to/markitdown` before starting |
 | A blueprint looks wrong after you edit docs | Tick **re-extract** and generate again, or delete the `data/` folder |
 
 Measured on the default model: a 5-doc scenario takes ~45–100 s from cold, and seconds once cached.
@@ -93,10 +109,15 @@ Measured on the default model: a 5-doc scenario takes ~45–100 s from cold, and
 
 Open http://localhost:8080:
 1. **Blueprint**: pick a scenario → *Generate blueprint* → confidence bars, per-country support (e.g. `DE 1/1`),
-   "unique practice" flags, evidence quotes (click a doc ID to see the source with the quote highlighted) → approve / edit / reject → export.
+   "unique practice" flags, approvers on approval rules, **order differences** (stages that peers run in opposite orders),
+   evidence quotes (click a doc ID to see the source with the quote highlighted) → approve / edit / reject →
+   export as Markdown, JSON or a **mock iCIMS config**.
 2. **Gap check**: *Load sample customer* (airlines → Canadian carrier, technology → US startup) or paste notes → see what the
    customer is **missing** vs peers (country-aware), what is **unique** to them, and what is **aligned**.
-3. **Accuracy**: scores the AI's extractions against the generator's answer key (precision, recall, % quotes verified).
+3. **Accuracy**: scores the AI's extractions against the answer key (precision, recall, % quotes verified). All 7 scenarios have one.
+4. **Sources**: the docs behind each scenario; upload more (PDF/DOCX/PPTX converted with MarkItDown).
+
+See [DEMO_SCRIPT.md](DEMO_SCRIPT.md) for the 5-minute judge walkthrough.
 
 ## Demo flow (curl)
 
@@ -109,13 +130,14 @@ curl -X PATCH localhost:8080/api/blueprints/airlines/pilot/items/STG-01 \
 curl localhost:8080/api/blueprints/airlines/pilot/export.md          # approved/edited items only
 ```
 
-Also: `POST /api/blueprints/{industry}/{workflowType}/gap-check` (`{"text": "...", "geography": "CA"}`),
-`GET /api/eval/{industry}/{workflowType}`, `GET /api/docs/{docId}/text`, `POST /api/docs` (multipart upload: `file`, `docId`, `industry`, `geography`, `workflowType`; .md/.txt),
+Also: `GET /api/blueprints/{industry}/{workflowType}/export.icims.json` (mock iCIMS config),
+`POST /api/blueprints/{industry}/{workflowType}/gap-check` (`{"text": "...", "geography": "CA"}`),
+`GET /api/eval/{industry}/{workflowType}`, `GET /api/docs/{docId}/text`, `POST /api/docs` (multipart upload: `file`, `docId`, `industry`, `geography`, `workflowType`; .md/.txt/.pdf/.docx/.pptx),
 `POST /api/extractions/{docId}`. Add `?force=true` to bypass the extraction cache.
 
 ## Synthetic scenarios
 
 `python3 tools/gen_synthetic_docs.py` regenerates 27 docs across technology, finance, retail, automotive, healthcare and
 hospitality, plus `docs/ground_truth.json` (the answer key used by the Accuracy tab). Airlines AIR-* and HC-001/002 are
-hand-written and have no answer key, so the Accuracy tab skips them. Add an industry by appending `co(...)` entries.
+hand-written; their answer keys are in `MANUAL_GOLD` in the same script. Add an industry by appending `co(...)` entries.
 Generate any scenario with `POST /api/blueprints/{industry}/{workflowType}`.

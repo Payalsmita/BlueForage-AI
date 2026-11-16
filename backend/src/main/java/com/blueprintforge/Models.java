@@ -51,21 +51,37 @@ public final class Models {
     /** How many implementations in one country contain the item, e.g. DE 2/2. */
     public record GeoSupport(String geography, int support, int total) {}
 
+    /** approvers: approval rules only, most frequently named first. */
     public record BlueprintItem(String id, Kind kind, String name, List<String> aliases, String detail,
                                 Double typicalOrder, int support, int total, List<Evidence> evidence,
-                                List<GeoSupport> geoSupport, Status status, String editedDetail) {
+                                List<GeoSupport> geoSupport, Status status, String editedDetail, List<String> approvers) {
+        public BlueprintItem(String id, Kind kind, String name, List<String> aliases, String detail, Double typicalOrder,
+                             int support, int total, List<Evidence> evidence, List<GeoSupport> geoSupport, Status status, String editedDetail) {
+            this(id, kind, name, aliases, detail, typicalOrder, support, total, evidence, geoSupport, status, editedDetail, List.of());
+        }
         BlueprintItem withId(String newId) {
-            return new BlueprintItem(newId, kind, name, aliases, detail, typicalOrder, support, total, evidence, geoSupport, status, editedDetail);
+            return new BlueprintItem(newId, kind, name, aliases, detail, typicalOrder, support, total, evidence, geoSupport, status, editedDetail, approvers);
         }
         BlueprintItem withDetail(String d) {
-            return new BlueprintItem(id, kind, name, aliases, d, typicalOrder, support, total, evidence, geoSupport, status, editedDetail);
+            return new BlueprintItem(id, kind, name, aliases, d, typicalOrder, support, total, evidence, geoSupport, status, editedDetail, approvers);
         }
         BlueprintItem reviewed(Status s, String edited) {
-            return new BlueprintItem(id, kind, name, aliases, detail, typicalOrder, support, total, evidence, geoSupport, s, edited);
+            return new BlueprintItem(id, kind, name, aliases, detail, typicalOrder, support, total, evidence, geoSupport, s, edited, approvers);
         }
     }
 
-    public record Blueprint(String industry, String workflowType, List<String> sourceDocIds, List<BlueprintItem> items) {}
+    /** Two stages that peers run in opposite orders: A before B in some implementations, B before A in others. */
+    public record OrderConflict(String stageA, String stageB, List<String> aFirstDocIds, List<String> bFirstDocIds) {}
+
+    public record Blueprint(String industry, String workflowType, List<String> sourceDocIds, List<BlueprintItem> items,
+                            List<OrderConflict> orderConflicts) {
+        public Blueprint(String industry, String workflowType, List<String> sourceDocIds, List<BlueprintItem> items) {
+            this(industry, workflowType, sourceDocIds, items, List.of());
+        }
+        Blueprint withItems(List<BlueprintItem> newItems) {
+            return new Blueprint(industry, workflowType, sourceDocIds, newItems, orderConflicts == null ? List.of() : orderConflicts);
+        }
+    }
 
     public record Review(Status status, String editedDetail) {}
 

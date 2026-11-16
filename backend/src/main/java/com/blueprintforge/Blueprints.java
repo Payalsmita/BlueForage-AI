@@ -70,7 +70,8 @@ public class Blueprints {
                 .collect(Collectors.toMap(Detail::id, Detail::detail, (a, b) -> a));
         items = items.stream().map(i -> i.withDetail(details.getOrDefault(i.id(), ""))).toList();
 
-        var bp = new Blueprint(industry, workflowType, group.stream().map(DocMeta::docId).toList(), items);
+        var bp = new Blueprint(industry, workflowType, group.stream().map(DocMeta::docId).toList(), items,
+                orderConflicts(extractions, canonMap));
         save(bp);
         return bp;
     }
@@ -91,7 +92,7 @@ public class Blueprints {
         var items = bp.items().stream()
                 .map(i -> i.id().equals(itemId) ? i.reviewed(r.status(), r.status() == Status.EDITED ? r.editedDetail() : i.editedDetail()) : i)
                 .toList();
-        var updated = new Blueprint(bp.industry(), bp.workflowType(), bp.sourceDocIds(), items);
+        var updated = bp.withItems(items);
         save(updated);
         return updated;
     }
@@ -99,7 +100,7 @@ public class Blueprints {
     /** Only approved/edited items leave the system. */
     public Blueprint approvedOnly(String industry, String workflowType) {
         Blueprint bp = get(industry, workflowType);
-        return new Blueprint(bp.industry(), bp.workflowType(), bp.sourceDocIds(), bp.items().stream()
+        return bp.withItems(bp.items().stream()
                 .filter(i -> i.status() == Status.APPROVED || i.status() == Status.EDITED).toList());
     }
 
@@ -115,16 +116,25 @@ public class Blueprints {
                         .append(i.geoSupport().stream().map(g -> g.geography() + " " + g.support() + "/" + g.total()).collect(Collectors.joining(", ")))
                         .append("_\n\n")
                         .append(i.status() == Status.EDITED ? i.editedDetail() : i.detail()).append("\n\n");
+                if (i.approvers() != null && !i.approvers().isEmpty())
+                    sb.append("Approvers: ").append(String.join(", ", i.approvers())).append("\n\n");
                 i.evidence().forEach(e -> sb.append("> ").append(e.quote()).append(" — ").append(e.docId()).append("\n"));
                 sb.append("\n");
             });
+        }
+        var conflicts = bp.orderConflicts() == null ? List.<OrderConflict>of() : bp.orderConflicts();
+        if (!conflicts.isEmpty()) {
+            sb.append("## Order differences between implementations\n\n");
+            conflicts.forEach(c -> sb.append("- ").append(c.stageA()).append(" before ").append(c.stageB())
+                    .append(" in ").append(String.join(", ", c.aFirstDocIds())).append("; after in ")
+                    .append(String.join(", ", c.bFirstDocIds())).append("\n"));
         }
         return sb.toString();
     }
 
     // ---- deterministic aggregation (unit-tested) ----
 
-    record Mention(Kind kind, String name, String docId, String geo, Integer order, List<String> quotes) {}
+    record Mention(Kind kind, String name, String docId, String geo, Integer order, List<String> quotes, List<String> approvers) {}
 
     static String key(Kind k, String name) { return k + "|" + name.trim().toLowerCase(); }
 
@@ -132,9 +142,10 @@ public class Blueprints {
         var out = new ArrayList<Mention>();
         for (Extraction e : extractions) {
             String id = e.doc().docId(), geo = e.doc().geography();
-            e.patterns().stages().forEach(s -> out.add(new Mention(Kind.STAGE, s.name(), id, geo, s.order(), s.quotes())));
-            e.patterns().roles().forEach(r -> out.add(new Mention(Kind.ROLE, r.name(), id, geo, null, r.quotes())));
-            e.patterns().approvalRules().forEach(r -> out.add(new Mention(Kind.APPROVAL_RULE, r.trigger(), id, geo, null, r.quotes())));
+            e.patterns().stages().forEach(s -> out.add(new Mention(Kind.STAGE, s.name(), id, geo, s.order(), s.quotes(), List.of())));
+            e.patterns().roles().forEach(r -> out.add(new Mention(Kind.ROLE, r.name(), id, geo, null, r.quotes(), List.of())));
+            e.patterns().approvalRules().forEach(r -> out.add(new Mention(Kind.APPROVAL_RULE, r.trigger(), id, geo, null, r.quotes(),
+                    r.approvers() == null ? List.of() : r.approvers())));
         }
         return out;
     }
@@ -161,7 +172,10 @@ public class Blueprints {
             var geo = docsPerGeo.entrySet().stream().map(g -> new GeoSupport(g.getKey(),
                     (int) ms.stream().filter(m -> m.geo().equals(g.getKey())).map(Mention::docId).distinct().count(),
                     g.getValue().intValue())).toList();
-            items.add(new BlueprintItem(null, kind, canonical, aliases, "", order, support, total, evidence, geo, Status.PENDING, null));
+            var approvers = ms.stream().flatMap(m -> m.approvers().stream()).map(String::trim).filter(a -> !a.isEmpty())
+                    .collect(Collectors.groupingBy(a -> a, LinkedHashMap::new, Collectors.counting()))
+                    .entrySet().stream().sorted(Map.Entry.<String, Long>comparingByValue().reversed()).map(Map.Entry::getKey).toList();
+            items.add(new BlueprintItem(null, kind, canonical, aliases, "", order, support, total, evidence, geo, Status.PENDING, null, approvers));
         });
         items.sort(Comparator.comparing(BlueprintItem::kind)
                 .thenComparing(i -> i.typicalOrder() == null ? 0 : i.typicalOrder())
@@ -172,6 +186,30 @@ public class Blueprints {
             String prefix = switch (i.kind()) { case STAGE -> "STG"; case ROLE -> "ROL"; case APPROVAL_RULE -> "APR"; };
             return i.withId(String.format("%s-%02d", prefix, n));
         }).toList();
+    }
+
+    /** Stage pairs that implementations run in opposite orders (canonical names), most disputed first. */
+    static List<OrderConflict> orderConflicts(List<Extraction> extractions, Map<String, String> canonMap) {
+        Map<String, List<String>> before = new HashMap<>(); // "A\u0000B" -> docs where A comes before B
+        for (Extraction e : extractions) {
+            var stages = e.patterns().stages().stream()
+                    .sorted(Comparator.comparingInt(Stage::order))
+                    .map(s -> canonMap.getOrDefault(key(Kind.STAGE, s.name()), s.name().trim()))
+                    .distinct().toList();
+            for (int i = 0; i < stages.size(); i++)
+                for (int j = i + 1; j < stages.size(); j++)
+                    before.computeIfAbsent(stages.get(i) + "\u0000" + stages.get(j), k -> new ArrayList<>()).add(e.doc().docId());
+        }
+        var out = new ArrayList<OrderConflict>();
+        before.forEach((k, aFirst) -> {
+            String[] ab = k.split("\u0000");
+            var bFirst = before.get(ab[1] + "\u0000" + ab[0]);
+            if (bFirst != null && ab[0].compareTo(ab[1]) < 0) // report each pair once
+                out.add(new OrderConflict(ab[0], ab[1], aFirst, bFirst));
+        });
+        out.sort(Comparator.comparingInt((OrderConflict c) -> -Math.min(c.aFirstDocIds().size(), c.bFirstDocIds().size()))
+                .thenComparing(OrderConflict::stageA));
+        return out;
     }
 
     /** "5/6 (CA 1/1)" style label used in exports and gap findings. */

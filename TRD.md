@@ -29,9 +29,9 @@ One process with no separate backend, no database, and no vector store. All stat
 | Language / framework | Java 21, Spring Boot 4.1 (Maven) | Single service, REST API |
 | LLM | Any OpenAI-compatible Chat Completions endpoint via `openai-java` SDK | `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`. The endpoint must support `response_format: json_schema`. |
 | Structured output | Java records → JSON schema (SDK `responseFormat(Class)`) | Schema validity is covered by a unit test |
-| Doc parsing | `.md` / `.txt` only | Add Apache Tika for PDF/DOCX when real docs arrive |
+| Doc parsing | `.md` / `.txt` as-is; `.pdf` / `.docx` / `.pptx` via Microsoft MarkItDown CLI | `MARKITDOWN_CMD` overrides the binary path |
 | Storage | JSON files under `data/` | No database |
-| Frontend | _TBD_ | API has CORS open for a local dev server |
+| Frontend | ReactJS (Vite) in `frontend/` | Built into Spring Boot's static folder; `npm run dev` proxies `/api` |
 
 **Deliberately excluded:** vector DB, embeddings, agent frameworks, fine-tuning.
 
@@ -155,6 +155,17 @@ The check runs without calling the LLM. It asserts that:
 | Gap check (new customer vs blueprint) | `POST /api/blueprints/{i}/{w}/gap-check` | extracts customer items; maps them to blueprint names | MISSING if ≥50% of peers have it (customer's country ratio when peers exist there), UNIQUE if no peer has it, ALIGNED otherwise |
 | Accuracy eval | `GET /api/eval/{i}/{w}` | — | precision/recall per kind vs `docs/ground_truth.json`; names fuzzy-matched by word overlap, approval rules matched by quote overlap |
 | UI | `/` (static `index.html`, no build step) | — | blueprint review, evidence viewer, gap check, accuracy |
+
+## 7b. Added capabilities (v0.3)
+
+| Capability | Where | Notes |
+|---|---|---|
+| React frontend | `frontend/` (Vite + React), built into `backend/src/main/resources/static` | Replaces the single-file UI; adds a Sources tab with upload |
+| PDF/DOCX/PPTX upload | `DocStore.toMarkdown` → Microsoft MarkItDown CLI | Converted Markdown is stored as `{docId}.md`; the quote check runs against it. Docs are short enough to send whole, so there's no chunking or embeddings yet. The same Markdown is ready to be chunked if docs grow. |
+| Stage-order variants | `Blueprint.orderConflicts` | Stage pairs that peers run in opposite orders, with doc IDs on each side |
+| Approvers per rule | `BlueprintItem.approvers` | Union of approvers named in the evidence, most frequent first |
+| Mock iCIMS config export | `GET .../export.icims.json` (`IcimsExport`) | Approved/edited items mapped to workflow statuses (keyword-binned), user roles, approval chains, country scoping, traceability. **Not an official iCIMS schema.** |
+| Answer keys for every doc | `MANUAL_GOLD` in `tools/gen_synthetic_docs.py` | Accuracy now covers all 7 scenarios |
 
 ## 8. Non-functional requirements
 

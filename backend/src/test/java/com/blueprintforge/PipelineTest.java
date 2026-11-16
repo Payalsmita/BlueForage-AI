@@ -24,6 +24,12 @@ class PipelineTest {
         assertEquals(1, e.patterns().stages().size());
         assertEquals("Simulator Evaluation", e.patterns().stages().getFirst().name());
         assertEquals(1, e.droppedQuotes());
+
+        // MarkItDown escapes markdown chars in DOCX output; a quote without the escapes must still verify
+        var docx = Extractor.checkEvidence(doc("B"), new Patterns(
+                List.of(new Stage("Intro", 1, List.of("*Synthetic sample data.*"))), List.of(), List.of()),
+                "\\*Synthetic sample data.\\*");
+        assertEquals(0, docx.droppedQuotes());
     }
 
     @Test
@@ -104,6 +110,43 @@ class PipelineTest {
         // and the normal, well-formed shape
         var ok = GapChecker.toMapping(List.of(new Match(Kind.STAGE, "Application Review", "Resume Screen")), customer, bp);
         assertEquals("Resume Screen", ok.get(Blueprints.key(Kind.STAGE, "Application Review")));
+    }
+
+    @Test
+    void orderConflictsAndApproversAreComputed() {
+        var a = new Extraction(doc("A"), new Patterns(
+                List.of(new Stage("Background Check", 1, List.of("q")), new Stage("Offer", 2, List.of("q"))), List.of(),
+                List.of(new ApprovalRule("pay above band", List.of("VP", "HR"), List.of("q")))), 0);
+        var b = new Extraction(doc("B"), new Patterns(
+                List.of(new Stage("Offer", 1, List.of("q")), new Stage("Background Check", 2, List.of("q"))), List.of(),
+                List.of(new ApprovalRule("pay above band", List.of("HR"), List.of("q")))), 0);
+        var c = new Extraction(doc("C"), new Patterns(
+                List.of(new Stage("Background Check", 1, List.of("q")), new Stage("Offer", 2, List.of("q"))), List.of(), List.of()), 0);
+
+        var conflicts = Blueprints.orderConflicts(List.of(a, b, c), Map.of());
+        assertEquals(List.of(new OrderConflict("Background Check", "Offer", List.of("A", "C"), List.of("B"))), conflicts);
+
+        var rule = Blueprints.aggregate(List.of(a, b, c), Map.of()).stream()
+                .filter(i -> i.kind() == Kind.APPROVAL_RULE).findFirst().orElseThrow();
+        assertEquals(List.of("HR", "VP"), rule.approvers()); // most frequent first
+    }
+
+    @Test
+    void icimsExportMapsStagesRolesAndCountrySpecificRules() {
+        var bp = new Blueprint("technology", "software-engineer", List.of("A", "B", "C"), List.of(
+                item("STG-01", Kind.STAGE, "Recruiter Phone Screen", 3, 3, List.of()),
+                item("STG-02", Kind.STAGE, "Background Check", 3, 3, List.of()),
+                new BlueprintItem("APR-01", Kind.APPROVAL_RULE, "Works Council notification", List.of(), "Every hire must be notified.",
+                        null, 1, 3, List.of(new Evidence("C", "q")),
+                        List.of(new GeoSupport("DE", 1, 1), new GeoSupport("US", 0, 2)), Status.APPROVED, null, List.of("Works Council"))));
+        Map<String, Object> cfg = IcimsExport.build(bp);
+        assertTrue(((String) cfg.get("_notice")).startsWith("MOCK"));
+        @SuppressWarnings("unchecked") var statuses = (List<Map<String, Object>>) ((Map<String, Object>) cfg.get("recruitingWorkflow")).get("statuses");
+        assertEquals(List.of("SCREENING", "PRE_HIRE_CHECKS"), statuses.stream().map(m -> m.get("bin")).toList());
+        @SuppressWarnings("unchecked") var chain = ((List<Map<String, Object>>) cfg.get("approvalChains")).getFirst();
+        assertEquals(List.of("DE"), chain.get("appliesToCountries"));
+        assertEquals("CANDIDATE", chain.get("appliesTo"));
+        assertEquals(List.of("Works Council"), chain.get("approvers"));
     }
 
     static List<String> names(List<GapFinding> fs, GapType t) {

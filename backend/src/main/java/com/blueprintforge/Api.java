@@ -82,6 +82,12 @@ public class Api {
         return blueprints.exportMarkdown(industry, workflowType);
     }
 
+    /** Mock iCIMS-style configuration from approved/edited items (see IcimsExport for the caveats). */
+    @GetMapping("/blueprints/{industry}/{workflowType}/export.icims.json")
+    public java.util.Map<String, Object> exportIcims(@PathVariable String industry, @PathVariable String workflowType) {
+        return IcimsExport.build(blueprints.approvedOnly(industry, workflowType));
+    }
+
     @PostMapping("/blueprints/{industry}/{workflowType}/gap-check")
     public GapReport gapCheck(@PathVariable String industry, @PathVariable String workflowType, @RequestBody GapRequest req) {
         return gaps.check(industry, workflowType, req);

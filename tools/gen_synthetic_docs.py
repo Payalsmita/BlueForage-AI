@@ -341,6 +341,58 @@ co("HOSP-004", "Alpine Lodge Collection", "hospitality", "CH", "front-desk-agent
    ["Starting pay above the standard rate requires General Manager approval."])
 
 
+# ---------------------------------------------------------------- answer keys for the hand-written docs
+# AIR-* and HC-001/002 are written by hand (not generated), so their answer keys are written by hand too.
+# Approval rules are the exact sentence from the doc; stages/roles are the names as the doc states them.
+MANUAL_GOLD = {
+    "AIR-001": {"STAGE": ["Application Review", "Recruiter Phone Screen", "Written Technical Assessment", "Simulator Evaluation",
+                          "Panel Interview", "Background Check", "Medical Verification", "Pre-Employment Drug Test", "Offer"],
+                "ROLE": ["Recruiter", "Simulator Check Airman", "Chief Pilot", "HR Business Partner"],
+                "APPROVAL_RULE": ["Every requisition must be approved by the Director of Flight Operations and Finance before it is posted.",
+                                  "Any offer above the standard First Officer pay band requires approval from the VP of Flight Operations and the HR Director.",
+                                  "Sign-on bonuses must be approved by Finance."]},
+    "AIR-002": {"STAGE": ["Resume Screening", "HR Screen", "Knowledge Test", "Sim Check", "Captain Interview",
+                          "Background & PRIA Check", "First-Class Medical Verification", "DOT Drug Screen", "Offer"],
+                "ROLE": ["Recruiter", "Fleet Captain", "Simulator Check Airman", "HR Business Partner"],
+                "APPROVAL_RULE": ["Requisitions are opened by the Fleet Captain and require sign-off from the Director of Flight Operations and Finance.",
+                                  "Offers above the standard pay band need approval from the VP Flight Operations and the HR Director.",
+                                  "Credit for prior experience toward seniority must be approved by the Chief Pilot."]},
+    "AIR-003": {"STAGE": ["Application Review", "Recruiter Phone Screen", "Written Technical Assessment", "Panel Interview",
+                          "Background Check", "Pre-Employment Drug Test", "Offer"],
+                "ROLE": ["Recruiter", "Chief Pilot", "HR Business Partner"],
+                "APPROVAL_RULE": ["Every requisition needs approval from the Director of Flight Operations and Finance before posting.",
+                                  "Any offer above the standard pay band requires approval from the VP of Flight Operations and the HR Director.",
+                                  "Sign-on bonuses require Finance approval."]},
+    "AIR-004": {"STAGE": ["Application Review", "Recruiter Phone Screen", "Simulator Evaluation", "Panel Interview",
+                          "Background Check", "Medical Verification", "Pre-Employment Drug Test", "Offer"],
+                "ROLE": ["Recruiter", "Simulator Check Airman", "Chief Pilot", "HR Business Partner"],
+                "APPROVAL_RULE": ["Requisitions require approval from the Director of Flight Operations and Finance.",
+                                  "Offers above the standard pay band require approval from the VP of Flight Operations and the HR Director.",
+                                  "Sign-on bonuses require Finance approval.",
+                                  "Credit for prior experience toward seniority must be approved by the Chief Pilot."]},
+    "AIR-005": {"STAGE": ["Application Review", "Recruiter Phone Screen", "Written Technical Assessment", "Simulator Evaluation",
+                          "Panel Interview", "Background Check", "Medical Verification", "Offer"],
+                "ROLE": ["Recruiter", "Simulator Check Airman", "Director of Flight Operations", "HR Business Partner"],
+                "APPROVAL_RULE": ["All requisitions require approval by the Director of Flight Operations and Finance.",
+                                  "Offers above the standard pay band require approval from the VP of Flight Operations and the HR Director."]},
+    "AIR-006": {"STAGE": ["Application Review", "Online Knowledge Test", "Simulator Evaluation", "Panel Interview",
+                          "Background Check", "Medical Verification", "Offer"],
+                "ROLE": ["Recruiter", "Simulator Check Airman", "Chief Pilot", "HR Business Partner"],
+                "APPROVAL_RULE": ["Requisitions require approval from the Director of Flight Operations.",
+                                  "Sign-on bonuses require Finance approval."]},
+    "HC-001": {"STAGE": ["Application Review", "Recruiter Phone Screen", "Nurse Manager Interview", "Skills Checklist",
+                         "License Verification", "Background Check", "Occupational Health Screening", "Offer"],
+               "ROLE": ["Recruiter", "Nurse Manager", "HR Generalist"],
+               "APPROVAL_RULE": ["Requisitions require approval from the Unit Director and Finance.",
+                                 "Offers with shift differentials above policy require approval from the Chief Nursing Officer."]},
+    "HC-002": {"STAGE": ["Application Review", "Recruiter Screen", "Peer Interview", "Nurse Manager Interview",
+                         "License Verification", "Background Check", "Occupational Health Screening", "Offer"],
+               "ROLE": ["Recruiter", "Nurse Manager", "Staff Nurse interviewers", "HR Generalist"],
+               "APPROVAL_RULE": ["Requisitions require approval from the Unit Director and Finance.",
+                                 "Sign-on bonuses require approval from the Chief Nursing Officer and Finance."]},
+}
+
+
 # ---------------------------------------------------------------- rendering
 def render(c):
     head = f"# FICTIONAL — {c['name']}: {c['title']}\n\n*Synthetic sample data. Approved by customer project lead.*\n\n{c['intro']}\n\n"
@@ -386,8 +438,9 @@ def main():
         rows.append([c["doc_id"], fn, c["industry"], c["geo"], c["workflow"]])
     with manifest.open("w", newline="") as f:
         csv.writer(f, lineterminator="\n").writerows(rows)
-    # Answer key for the accuracy eval (GET /api/eval/...). Hand-written docs have no entry.
-    gold = {c["doc_id"]: {"STAGE": [n for n, _, _ in c["stages"]], "ROLE": [r for r, _ in c["roles"]],
+    # Answer key for the accuracy eval (GET /api/eval/...): hand-written MANUAL_GOLD + generated docs.
+    gold = dict(MANUAL_GOLD)
+    gold |= {c["doc_id"]: {"STAGE": [n for n, _, _ in c["stages"]], "ROLE": [r for r, _ in c["roles"]],
                           "APPROVAL_RULE": c["approvals"]} for c in C}
     (DOCS / "ground_truth.json").write_text(json.dumps(gold, indent=1))
     print(f"wrote {len(C)} docs; manifest has {len(rows) - 1} docs")

@@ -18,9 +18,11 @@ import java.util.regex.Pattern;
 public class DocStore {
     static final Pattern SLUG = Pattern.compile("[A-Za-z0-9-]{1,64}");
     private final Path dir;
+    private final String markitdown;
 
-    public DocStore(@Value("${blueprint.docs-dir}") String dir) {
+    public DocStore(@Value("${blueprint.docs-dir}") String dir, @Value("${blueprint.markitdown}") String markitdown) {
         this.dir = Path.of(dir);
+        this.markitdown = markitdown;
     }
 
     // ponytail: naive CSV split, no quoted fields; switch to a CSV lib if metadata ever contains commas
@@ -55,7 +57,7 @@ public class DocStore {
         }
     }
 
-    /** Only .md/.txt for now. PDF/DOCX: add Apache Tika when real docs arrive. */
+    /** .md/.txt are stored as-is; .pdf/.docx/.pptx are converted to Markdown with Microsoft MarkItDown. */
     public synchronized DocMeta add(String docId, String industry, String geography, String workflowType,
                                     String originalName, byte[] content) throws IOException {
         for (String v : List.of(docId, industry, geography, workflowType))
@@ -63,15 +65,52 @@ public class DocStore {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Metadata must match " + SLUG + ": " + v);
         String lower = originalName == null ? "" : originalName.toLowerCase();
         String ext = lower.endsWith(".md") ? ".md" : lower.endsWith(".txt") ? ".txt" : null;
-        if (ext == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only .md and .txt are supported");
+        String convertFrom = lower.matches(".*\\.(pdf|docx|pptx)$") ? lower.substring(lower.lastIndexOf('.')) : null;
+        if (ext == null && convertFrom == null)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Supported files: .md, .txt, .pdf, .docx, .pptx");
         if (list().stream().anyMatch(d -> d.docId().equals(docId)))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Doc already exists: " + docId);
 
+        if (convertFrom != null) {
+            content = toMarkdown(convertFrom, content);
+            ext = ".md";
+        }
         String filename = docId + ext; // never trust the uploaded filename for paths
         Files.write(dir.resolve(filename), content);
         Files.writeString(dir.resolve("manifest.csv"),
                 String.join(",", docId, filename, industry, geography, workflowType) + "\n",
                 StandardOpenOption.APPEND);
         return new DocMeta(docId, filename, industry, geography, workflowType);
+    }
+
+    /** Runs the MarkItDown CLI (pip/uv: markitdown[pdf,docx,pptx]) on a temp copy of the upload. */
+    byte[] toMarkdown(String ext, byte[] content) throws IOException {
+        Path in = Files.createTempFile("bf-upload", ext), out = Files.createTempFile("bf-upload", ".md");
+        try {
+            Files.write(in, content);
+            Process p;
+            try {
+                p = new ProcessBuilder(markitdown, in.toString())
+                        .redirectOutput(out.toFile()).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+            } catch (IOException e) {
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                        "MarkItDown not found. Install it: uv tool install 'markitdown[pdf,docx,pptx]' (or pip), or set MARKITDOWN_CMD");
+            }
+            if (!p.waitFor(120, java.util.concurrent.TimeUnit.SECONDS)) {
+                p.destroyForcibly();
+                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Document conversion timed out");
+            }
+            byte[] md = Files.readAllBytes(out);
+            if (p.exitValue() != 0 || new String(md).isBlank())
+                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Could not extract text from the document (scanned PDF or unsupported content?)");
+            return md;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException(e);
+        } finally {
+            Files.deleteIfExists(in);
+            Files.deleteIfExists(out);
+        }
     }
 }

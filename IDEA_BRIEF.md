@@ -5,7 +5,7 @@
 | **Project title** | BlueprintForge AI |
 | **Team name** | _TBD (currently "Cohort", which is the template's placeholder)_ |
 | **Team members** | Tushar Chandel, Payalsmita Pradhan, Saikumar Adepu |
-| **Captain / email** | TUSHARADRI.CHANDEL@icims.com |
+| **Captain** | Tushar Chandel |
 | **Source idea** | iCIMS AI Hackathon Ideas — #2 "AI Industry Blueprint Generator" |
 
 ---
@@ -27,16 +27,17 @@ BlueprintForge AI learns from the company's past hiring setups. It finds the pat
 3. **Extract.** The LLM, using structured JSON output validated by a schema, extracts workflow patterns (roles, stages, approval rules) from each doc, along with the exact source quote for each one.
 4. **Aggregate patterns.** Group extractions by their **industry + workflow-type metadata tags**. Normalize equivalent items, for example "Phone Screen" and "Recruiter Screen", and count how many implementations contain each pattern. That count is the confidence score, e.g. "found in 4/6 implementations". _Embedding-based clustering is unnecessary for the MVP because the docs are already labeled._
 5. **Generate blueprint.** The LLM writes each group up as an editable industry template. Every item links back to the source excerpts that support it.
-6. **Review UI + demo.** A single Streamlit app: upload docs → view extracted patterns → browse the generated blueprint → click any item to see its evidence → **approve / edit / reject** → export. Prepare a 5-minute demo script built around the airlines story.
+6. **Review UI + demo.** A React web app: upload docs (PDF/DOCX/PPTX/MD) → browse the generated blueprint → click any item to see its evidence → **approve / edit / reject** → export (Markdown, JSON, mock iCIMS config). Plus a gap check for a new customer and an accuracy check against an answer key. A 5-minute demo script is in [DEMO_SCRIPT.md](DEMO_SCRIPT.md).
 
 ### Tools / data
 
-- **LLM:** Claude API via the Python SDK (`anthropic`) for extraction and synthesis, with JSON validated against a Pydantic schema.
-- **Embeddings (optional):** local `sentence-transformers` model, used only to normalize similar item names. This avoids needing a second vendor key.
-- **App:** a single Python + Streamlit app with no separate backend. FastAPI can be added later if another system needs an API.
-- **Storage:** JSON files on disk. A vector database is not needed at MVP scale.
-- **Data:** 100% synthetic, self-authored sample implementations. No customer data.
-- **Dev:** `.env` for the API key. Claude Code is optional, to speed up scaffolding.
+- **Backend:** Java 21 + Spring Boot (REST API; also serves the built frontend).
+- **LLM:** any OpenAI-compatible endpoint, with any model or provider, through the `openai-java` SDK. JSON is guaranteed by structured outputs (`response_format: json_schema`). The current demo uses DeepSeek V4.1 Flash via OpenRouter, and switching takes three settings in `.env`.
+- **Frontend:** ReactJS (Vite). The production build is served by the Spring Boot app.
+- **Document conversion:** Microsoft [MarkItDown](https://github.com/microsoft/markitdown) turns uploaded PDF, DOCX and PPTX files into Markdown. That same Markdown is what we would chunk and embed once documents get too large to read whole.
+- **Storage:** JSON files on disk, which also cache each document's extraction. No database or vector store is needed at MVP scale.
+- **Data:** 100% synthetic, self-authored sample implementations (35 docs, 7 industries) with an answer key. No customer data.
+- **Dev:** `.env` for the API key. Claude Code was used to speed up building.
 
 ### Dependencies / risks
 
@@ -76,6 +77,9 @@ Validation: timed live demo and UI inspection of evidence links. \*The baseline 
 ---
 
 ## Change log (vs. original .docx brief)
+
+> Rows 5–7 describe the first draft. The build since moved to Java/Spring Boot + any OpenAI-compatible endpoint + ReactJS + MarkItDown (see Tools / data above).
+
 
 | # | Change | Why |
 |---|---|---|
