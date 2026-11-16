@@ -38,7 +38,7 @@ set -a; . ../.env; set +a
 
 ```powershell
 cd backend
-Get-Content ..\.env | Where-Object { $_ -match '=' } | ForEach-Object { $k, $v = $_ -split '=', 2; Set-Item "env:$k" $v }
+Get-Content ..\.env | Where-Object { $_ -match '=' } | ForEach-Object { $k, $v = $_ -split '=', 2; Set-Item "env:$k" $v.Trim('"', "'") }
 .\mvnw.cmd spring-boot:run
 ```
 

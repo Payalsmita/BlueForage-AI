@@ -172,9 +172,7 @@ public class Blueprints {
             var geo = docsPerGeo.entrySet().stream().map(g -> new GeoSupport(g.getKey(),
                     (int) ms.stream().filter(m -> m.geo().equals(g.getKey())).map(Mention::docId).distinct().count(),
                     g.getValue().intValue())).toList();
-            var approvers = ms.stream().flatMap(m -> m.approvers().stream()).map(String::trim).filter(a -> !a.isEmpty())
-                    .collect(Collectors.groupingBy(a -> a, LinkedHashMap::new, Collectors.counting()))
-                    .entrySet().stream().sorted(Map.Entry.<String, Long>comparingByValue().reversed()).map(Map.Entry::getKey).toList();
+            var approvers = approvers(ms);
             items.add(new BlueprintItem(null, kind, canonical, aliases, "", order, support, total, evidence, geo, Status.PENDING, null, approvers));
         });
         items.sort(Comparator.comparing(BlueprintItem::kind)
@@ -186,6 +184,22 @@ public class Blueprints {
             String prefix = switch (i.kind()) { case STAGE -> "STG"; case ROLE -> "ROL"; case APPROVAL_RULE -> "APR"; };
             return i.withId(String.format("%s-%02d", prefix, n));
         }).toList();
+    }
+
+    /** Approvers across mentions, most frequent first; spelling variants ("VP of Flight Operations" / "VP Flight
+     *  Operations") count as one and keep their most common spelling. */
+    static List<String> approvers(List<Mention> ms) {
+        Map<String, Map<String, Long>> byKey = new LinkedHashMap<>();
+        ms.stream().flatMap(m -> m.approvers().stream()).map(String::trim).filter(a -> !a.isEmpty())
+                .forEach(a -> byKey.computeIfAbsent(approverKey(a), k -> new LinkedHashMap<>()).merge(a, 1L, Long::sum));
+        return byKey.values().stream()
+                .sorted(Comparator.comparingLong((Map<String, Long> v) -> v.values().stream().mapToLong(Long::longValue).sum()).reversed())
+                .map(v -> v.entrySet().stream().max(Map.Entry.comparingByValue()).orElseThrow().getKey())
+                .toList();
+    }
+
+    static String approverKey(String a) {
+        return a.toLowerCase().replaceAll("\\b(of|the)\\b", "").replaceAll("[^a-z]", "");
     }
 
     /** Stage pairs that implementations run in opposite orders (canonical names), most disputed first. */

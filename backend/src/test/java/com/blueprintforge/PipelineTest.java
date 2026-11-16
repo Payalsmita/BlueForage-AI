@@ -129,6 +129,11 @@ class PipelineTest {
         var rule = Blueprints.aggregate(List.of(a, b, c), Map.of()).stream()
                 .filter(i -> i.kind() == Kind.APPROVAL_RULE).findFirst().orElseThrow();
         assertEquals(List.of("HR", "VP"), rule.approvers()); // most frequent first
+        var variants = List.of(
+                new Blueprints.Mention(Kind.APPROVAL_RULE, "r", "A", "US", null, List.of(), List.of("VP of Flight Operations", "HR Director")),
+                new Blueprints.Mention(Kind.APPROVAL_RULE, "r", "B", "US", null, List.of(), List.of("VP Flight Operations")),
+                new Blueprints.Mention(Kind.APPROVAL_RULE, "r", "C", "US", null, List.of(), List.of("VP of Flight Operations")));
+        assertEquals(List.of("VP of Flight Operations", "HR Director"), Blueprints.approvers(variants));
     }
 
     @Test
@@ -214,6 +219,7 @@ class PipelineTest {
                 List.of(new Stage("offer", 2, List.of("x")), new Stage("Background Check", 3, List.of("We run checks."))),
                 List.of(),
                 List.of(new ApprovalRule("Req approval", List.of(), List.of("Requisitions need VP approval.")), // same quote: duplicate
+                        new ApprovalRule("Requisition sign-off", List.of(), List.of("- Requisitions need VP approval.")), // bullet variant: duplicate
                         new ApprovalRule("Works Council", List.of(), List.of("Every hire needs Works Council approval."))));
         Extraction merged = Extractor.merge(base, additions);
         assertEquals(List.of("Offer", "Background Check"), merged.patterns().stages().stream().map(Stage::name).toList());

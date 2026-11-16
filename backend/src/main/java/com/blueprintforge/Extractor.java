@@ -30,6 +30,8 @@ public class Extractor {
             You are double-checking another analyst's extraction from a recruiting-system implementation document.
             Compare the DOCUMENT with the EXTRACTED list. Return ONLY items that the document states but the list is missing:
             hiring stages, roles (people or teams who do hiring work), and approval/sign-off/notification rules.
+            Someone who appears ONLY as an approver inside an approval rule is NOT a missing role; add them as a role only
+            if the document lists them as a role or says what hiring work they do.
             Quote the full sentence for each, copied exactly. Never repeat an item already in the list.
             Return empty lists if nothing is missing.
             """;
@@ -91,21 +93,27 @@ public class Extractor {
         return sb.toString();
     }
 
-    /** Adds self-check items that aren't already present (same name, or same quote). */
+    /** Adds self-check items that aren't already present: same name, or a quote overlapping an existing quote. */
     static Extraction merge(Extraction base, Patterns additions) {
         Patterns p = base.patterns();
-        var seen = new java.util.HashSet<String>();
-        p.stages().forEach(s -> { seen.add("S|" + norm(s.name())); s.quotes().forEach(q -> seen.add("Q|" + norm(q))); });
-        p.roles().forEach(r -> { seen.add("R|" + norm(r.name())); r.quotes().forEach(q -> seen.add("Q|" + norm(q))); });
-        p.approvalRules().forEach(r -> { seen.add("A|" + norm(r.trigger())); r.quotes().forEach(q -> seen.add("Q|" + norm(q))); });
-        var stages = additions.stages().stream().filter(s -> seen.add("S|" + norm(s.name()))).toList();
-        var roles = additions.roles().stream().filter(r -> seen.add("R|" + norm(r.name()))).toList();
+        var names = new java.util.HashSet<String>();
+        var quotes = new java.util.ArrayList<String>();
+        p.stages().forEach(s -> { names.add("S|" + norm(s.name())); s.quotes().forEach(q -> quotes.add(norm(q))); });
+        p.roles().forEach(r -> { names.add("R|" + norm(r.name())); r.quotes().forEach(q -> quotes.add(norm(q))); });
+        p.approvalRules().forEach(r -> { names.add("A|" + norm(r.trigger())); r.quotes().forEach(q -> quotes.add(norm(q))); });
+        var stages = additions.stages().stream().filter(s -> names.add("S|" + norm(s.name()))).toList();
+        var roles = additions.roles().stream().filter(r -> names.add("R|" + norm(r.name()))).toList();
         var rules = additions.approvalRules().stream()
-                .filter(r -> r.quotes().stream().noneMatch(q -> seen.contains("Q|" + norm(q))) && seen.add("A|" + norm(r.trigger())))
+                .filter(r -> r.quotes().stream().noneMatch(q -> overlaps(norm(q), quotes)) && names.add("A|" + norm(r.trigger())))
                 .toList();
         var added = new Patterns(stages, roles, rules);
         var merged = new Patterns(concat(p.stages(), stages), concat(p.roles(), roles), concat(p.approvalRules(), rules));
         return new Extraction(base.doc(), merged, base.droppedQuotes(), added);
+    }
+
+    /** True when q and an existing quote contain one another (e.g. the same sentence with or without a "- " bullet). */
+    static boolean overlaps(String q, List<String> existing) {
+        return q.length() >= 15 && existing.stream().anyMatch(e -> e.length() >= 15 && (e.contains(q) || q.contains(e)));
     }
 
     private static <T> List<T> concat(List<T> a, List<T> b) {
