@@ -2,13 +2,29 @@ import { useEffect, useRef, useState } from 'react'
 import { api, groupPath } from './api.js'
 import Blueprint from './Blueprint.jsx'
 import { Accuracy, GapCheck, Sources } from './Panels.jsx'
+import Agent from './Agent.jsx'
 
-const TABS = [['blueprint', 'Blueprint'], ['gap', 'Gap check'], ['eval', 'Accuracy'], ['sources', 'Sources']]
+/** The guided demo flow: one numbered step per page. */
+const STEPS = [
+  { id: 'overview', label: 'Overview', sub: 'What BlueprintForge does',
+    explain: 'The big picture: how past implementations become a reviewed blueprint, and how the agent uses it for a new customer.' },
+  { id: 'sources', label: 'Sources', sub: 'Past implementations',
+    explain: 'These are the past implementation documents for the selected scenario. Add more here (PDF, DOCX and PPTX are converted to Markdown).' },
+  { id: 'blueprint', label: 'Blueprint', sub: 'Review the industry template',
+    explain: 'The AI pulled stages, roles and approval rules from every source doc. Code counted how many implementations contain each one and verified every quote. Approve, edit or reject each item.' },
+  { id: 'eval', label: 'Accuracy', sub: 'Prove it against an answer key',
+    explain: 'We scored the AI\'s extractions against a hand-checked answer key. No AI calls are made on this page.' },
+  { id: 'gap', label: 'Gap check', sub: 'Quick check of a new customer',
+    explain: 'A one-shot comparison of a new customer\'s notes with the blueprint: what they are missing, what is unique to them and what already matches.' },
+  { id: 'agent', label: 'Implementation Agent', sub: 'Kickoff notes → handover',
+    explain: 'The agent takes a new customer from kickoff notes to a validated configuration, UAT tests and a handover pack. It pauses for a consultant to answer questions and to approve the result.' },
+]
 
 export default function App() {
   const [groups, setGroups] = useState([])
   const [sel, setSel] = useState(0)
-  const [tab, setTab] = useState('blueprint')
+  // step lives in the URL hash so a refresh or a shared link keeps the place in the demo
+  const [step, setStep] = useState(() => STEPS.some(s => `#${s.id}` === location.hash) ? location.hash.slice(1) : 'overview')
   const [status, setStatus] = useState({ msg: '', error: false })
   const [busy, setBusy] = useState(false)
   const [force, setForce] = useState(false)
@@ -65,6 +81,23 @@ export default function App() {
     setBp(await api(`/api/blueprints/${groupPath(g)}?force=${force}`, { method: 'POST' }))
   })
 
+  const go = id => { setStep(id); history.replaceState(null, '', `#${id}`); window.scrollTo({ top: 0 }) }
+  const idx = STEPS.findIndex(s => s.id === step)
+
+  /** Every page: explainer on top, "Next" at the bottom. Pages stay mounted so their state survives navigation. */
+  const page = (id, children) => {
+    const n = STEPS.findIndex(s => s.id === id)
+    const next = STEPS[n + 1]
+    return (
+      <section key={id} id={`page-${id}`} aria-labelledby={`step-${id}`} hidden={step !== id}>
+        <h2 className="page-title"><span className="stepnum">{n}</span>{STEPS[n].label}</h2>
+        <p className="explain"><b>What's happening here:</b> {STEPS[n].explain}</p>
+        {children}
+        {next && id !== 'overview' && <div className="next"><button className="primary" onClick={() => go(next.id)}>Next: {next.label} →</button></div>}
+      </section>
+    )
+  }
+
   return (
     <>
       <header className="top">
@@ -80,31 +113,67 @@ export default function App() {
         </div>
       </header>
       <div className={`status${status.error ? ' error' : ''}`} role="status" aria-live="polite">{status.msg}</div>
-      <nav role="tablist">
-        {TABS.map(([id, label]) => (
-          <button key={id} role="tab" id={`tab-${id}`} aria-controls={`panel-${id}`} aria-selected={tab === id} onClick={() => setTab(id)}>{label}</button>
-        ))}
-      </nav>
-      <main>
-        {g && <>
-          <section role="tabpanel" id="panel-blueprint" aria-labelledby="tab-blueprint" hidden={tab !== 'blueprint'}>
-            <Blueprint bp={bp} setBp={setBp} g={g} openDoc={openDoc} fail={fail} />
-          </section>
-          <section role="tabpanel" id="panel-gap" aria-labelledby="tab-gap" hidden={tab !== 'gap'}>
-            <GapCheck key={gKey} g={g} run={run} busy={busy} setStatus={setStatus} />
-          </section>
-          <section role="tabpanel" id="panel-eval" aria-labelledby="tab-eval" hidden={tab !== 'eval'}>
-            <Accuracy key={gKey} g={g} run={run} busy={busy} />
-          </section>
-          <section role="tabpanel" id="panel-sources" aria-labelledby="tab-sources" hidden={tab !== 'sources'}>
-            <Sources key={gKey} g={g} run={run} busy={busy} openDoc={openDoc} onUploaded={loadGroups} fail={fail} />
-          </section>
-        </>}
-      </main>
+      <div className="layout">
+        <nav className="rail" aria-label="Demo steps">
+          <ol>
+            {STEPS.map((s, n) => (
+              <li key={s.id}>
+                <button id={`step-${s.id}`} aria-current={step === s.id ? 'step' : undefined}
+                        className={n < idx ? 'done' : ''} onClick={() => go(s.id)}>
+                  <span className="stepnum">{n}</span>
+                  <span className="lbl">{s.label}<small>{s.sub}</small></span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </nav>
+        <main>
+          {page('overview', <Overview groups={groups} onStart={() => go('sources')} />)}
+          {g && <>
+            {page('sources', <Sources key={gKey} g={g} run={run} busy={busy} openDoc={openDoc} onUploaded={loadGroups} fail={fail} />)}
+            {page('blueprint', <Blueprint bp={bp} setBp={setBp} g={g} openDoc={openDoc} fail={fail} />)}
+            {page('eval', <Accuracy key={gKey} g={g} run={run} busy={busy} />)}
+            {page('gap', <GapCheck key={gKey} g={g} run={run} busy={busy} setStatus={setStatus} />)}
+            {page('agent', <Agent g={g} hasBlueprint={!!bp} openDoc={openDoc} fail={fail} setStatus={setStatus} />)}
+          </>}
+        </main>
+      </div>
       <dialog ref={dialog} onClose={() => setDoc(null)}>
         <header><strong>{doc?.id}</strong><button className="small" style={{ marginLeft: 'auto' }} onClick={() => dialog.current.close()}>Close</button></header>
         {doc && <pre><Highlighted text={doc.text} quote={doc.quote} /></pre>}
       </dialog>
+    </>
+  )
+}
+
+const PIPELINE = [
+  ['Past implementations', '35 fictional customer docs, 7 industries'],
+  ['AI extraction + verbatim check', 'every quote must exist in the source'],
+  ['Industry blueprint', 'code counts support per country'],
+  ['Consultant review', 'approve · edit · reject'],
+  ['New customer: Implementation Agent', 'gaps → questions → config → validate → UAT'],
+  ['Handover', 'config + tests + open items, approved by a human'],
+]
+
+function Overview({ groups, onStart }) {
+  const docs = groups.reduce((a, x) => a + x.docCount, 0)
+  const industries = new Set(groups.map(x => x.industry)).size
+  return (
+    <>
+      <p className="pitch">
+        Every new customer's hiring workflow gets configured from scratch, even though the same industry has been done dozens of times.
+        <b> BlueprintForge AI</b> turns past implementations into an evidence-backed industry blueprint, then uses an
+        <b> Implementation Agent</b> to take a new customer from kickoff notes to a validated configuration, with a consultant approving every decision.
+      </p>
+      <ol className="pipeline" aria-label="How it works">
+        {PIPELINE.map(([t, s], n) => <li key={n}><b>{t}</b><span>{s}</span></li>)}
+      </ol>
+      <div className="stats">
+        <div className="stat"><div className="big">{groups.length}</div><div>scenarios (industry × role)</div></div>
+        <div className="stat"><div className="big">{industries}</div><div>industries</div></div>
+        <div className="stat"><div className="big">{docs}</div><div>past implementation documents</div></div>
+      </div>
+      <button className="primary big-btn" onClick={onStart}>Start →</button>
     </>
   )
 }

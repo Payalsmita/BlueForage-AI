@@ -168,6 +168,31 @@ The check runs without calling the LLM. It asserts that:
 | Swagger / OpenAPI | springdoc-openapi 3.2 → `/swagger-ui.html`, `/v3/api-docs(.yaml)`; committed copy in `api.yml` | Generated from the controllers, so it can't drift from the code; summaries come from `@Operation` |
 | Answer keys for every doc | `MANUAL_GOLD` in `tools/gen_synthetic_docs.py` | Accuracy now covers all 7 scenarios |
 
+## 7c. Implementation Agent, self-check and MCP (v0.4)
+
+**Implementation Agent** (`ImplementationAgent`, `AgentRun`; `POST/GET /api/runs`, `/answers`, `/approval`, `/handover.md`, `/config.json`)
+
+```
+kickoff notes → extract_requirements (+ self-check) → gap_check → draft_questions ⏸ consultant answers
+→ apply_answers → draft_config → validate_config ↺ revise_config → generate_uat → handover ⏸ consultant approval
+```
+
+- **Agentic with guardrails:** each turn, code computes the ALLOWED tools from the run state (`allowedTools`), and the LLM picks one and gives a one-sentence reason that the UI shows. Anything outside the allowed set falls back to the default next step. There are real choices: ask the customer or proceed straight to config; revise the config or move on to tests. The revise loop is capped at 2.
+- **LLM vs code:**
+  - The LLM: planning, question wording, interpreting free-text answers, UAT test cases.
+  - Code: final requirement list, config build (via `IcimsExport`), 8 validation checks, auto-fixes, coverage.
+  - The validation checks are coverage, traceability, approvers, approver roles, stage order, country scope, duplicates, and requisition approval.
+- **Human in the loop:** pauses at `WAITING_FOR_ANSWERS` and `WAITING_FOR_APPROVAL`. Free-text answers are interpreted by the LLM and labelled `interpretedByAgent`.
+- **State and recovery:** one JSON file per run in `data/runs/`, written atomically after every step. Runs that were RUNNING when the server restarted are marked FAILED.
+
+**Self-check extraction** (`Extractor.SELF_CHECK`; toggle with `SELF_CHECK=false`)
+- A second pass asks the model to list what its first pass missed. Additions go through the same verbatim-quote check and are stored separately (`Extraction.selfCheck`).
+- The accuracy report shows recall with and without the self-check (`withoutSelfCheck`).
+
+**MCP server** (`mcp/`, Python, official MCP SDK)
+- 8 tools wrapping the REST API: scenarios, blueprint, gap check, start/get/answer/approve implementation, and handover.
+- See `mcp/README.md` for Claude Desktop and Claude Code setup.
+
 ## 8. Non-functional requirements
 
 | Area | Requirement |

@@ -1,0 +1,6 @@
+[project]
+name = "blueprintforge-mcp"
+version = "0.1.0"
+description = "MCP server exposing the BlueprintForge AI REST API as tools"
+requires-python = ">=3.11"
+dependencies = ["mcp>=2.3,<3", "httpx>=0.28,<1"]

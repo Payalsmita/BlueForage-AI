@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { KIND, api, groupPath, json, pct } from './api.js'
+import { KIND, SAMPLES, api, groupPath, json, pct } from './api.js'
 
-const SAMPLES = { airlines: { file: '/samples/airlines.md', geo: 'CA' }, technology: { file: '/samples/technology.md', geo: 'US' } }
 
 // ---------- Gap check ----------
 export function GapCheck({ g, run, busy, setStatus }) {
@@ -19,29 +18,6 @@ export function GapCheck({ g, run, busy, setStatus }) {
     setReport(await api(`/api/blueprints/${groupPath(g)}/gap-check`, json({ text, geography: geo })))
   })
 
-  const section = (type, title, hint) => {
-    const fs = report.findings.filter(f => f.type === type)
-    return (
-      <div>
-        <h2>{title} <small>{fs.length}</small></h2>
-        <p className="hint">{hint}</p>
-        {fs.length === 0 && <div className="empty" style={{ padding: 16 }}>None</div>}
-        {fs.map((f, n) => (
-          <div className="card" key={n}>
-            <div className="row">
-              <span className="id">{f.blueprintItemId || 'new'}</span>
-              <span className="name">{f.name}</span>
-              <span className={`pill ${type}`}>{KIND[f.kind]}</span>
-            </div>
-            <div className="conf">peers: {f.peerSupport}</div>
-            <div className="detail">{f.message}</div>
-            {f.customerQuotes?.length > 0 && <ul className="ev">{f.customerQuotes.map((q, k) => <li key={k}>“{q}”</li>)}</ul>}
-          </div>
-        ))}
-      </div>
-    )
-  }
-
   return (
     <>
       <div className="gap-form">
@@ -53,14 +29,41 @@ export function GapCheck({ g, run, busy, setStatus }) {
         <textarea aria-label="Customer requirements" value={text} onChange={e => setText(e.target.value)} />
         <div><button className="primary" disabled={busy} onClick={check}>Check against blueprint</button></div>
       </div>
-      {report && (
-        <div className="cols">
-          {section('MISSING', 'Missing', 'Common among peers (50%+, country-aware) but absent from this customer.')}
-          {section('UNIQUE', 'Unique to this customer', 'Not seen at any peer. Confirm it is intentional.')}
-          {section('ALIGNED', 'Aligned', 'Matches the industry blueprint.')}
-        </div>
-      )}
+      {report && <Findings findings={report.findings} />}
     </>
+  )
+}
+
+/** MISSING / UNIQUE / ALIGNED columns; shared by the Gap check page and the Implementation Agent. */
+export function Findings({ findings = [] }) {
+  const section = (type, title, hint) => {
+    const fs = findings.filter(f => f.type === type)
+    return (
+      <div>
+        <h2>{title} <small>{fs.length}</small></h2>
+        <p className="hint">{hint}</p>
+        {fs.length === 0 && <div className="empty" style={{ padding: 16 }}>None</div>}
+        {fs.map((f, n) => (
+          <div className="card" key={n}>
+            <div className="row">
+              <span className="id">{f.blueprintItemId || 'new'}</span>
+              <span className="name">{f.name}</span>
+              <span className={`pill ${type}`}>{KIND[f.kind] || f.kind}</span>
+            </div>
+            <div className="conf">peers: {f.peerSupport}</div>
+            <div className="detail">{f.message}</div>
+            {f.customerQuotes?.length > 0 && <ul className="ev">{f.customerQuotes.map((q, k) => <li key={k}>“{q}”</li>)}</ul>}
+          </div>
+        ))}
+      </div>
+    )
+  }
+  return (
+    <div className="cols">
+      {section('MISSING', 'Missing', 'Common among peers (50%+, country-aware) but absent from this customer.')}
+      {section('UNIQUE', 'Unique to this customer', 'Not seen at any peer. Confirm it is intentional.')}
+      {section('ALIGNED', 'Aligned', 'Matches the industry blueprint.')}
+    </div>
   )
 }
 
@@ -84,6 +87,16 @@ export function Accuracy({ g, run, busy }) {
           <Stat big={pct(quoteRate)} label={`quotes found verbatim in source (${r.quotesDropped} dropped)`} />
           <Stat big={r.docsEvaluated} label={`docs scored${r.docsSkipped.length ? ` · skipped ${r.docsSkipped.join(', ')}` : ''}`} />
         </div>
+        {r.withoutSelfCheck ? (
+          <p className="hint">
+            <b>Self-check:</b> a second AI pass recovered {r.selfCheckAdded} item(s) the first pass missed. Recall without it:{' '}
+            {r.withoutSelfCheck.map((s, n) => (
+              <span key={s.kind}>{n > 0 && ' · '}{KIND[s.kind]} {pct(s.recall)} → <b>{pct(r.scores.find(x => x.kind === s.kind)?.recall ?? 0)}</b></span>
+            ))}
+          </p>
+        ) : (
+          <p className="hint">Self-check recovered nothing extra for these extractions (or they were cached before the self-check existed; tick <i>re-extract</i> and generate again).</p>
+        )}
         <table>
           <thead><tr><th>Kind</th><th>Expected</th><th>Extracted</th><th>Matched</th><th>Precision</th><th>Recall</th><th></th></tr></thead>
           <tbody>

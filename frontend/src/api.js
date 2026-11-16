@@ -14,3 +14,9 @@ export async function api(url, opts = {}) {
 }
 
 export const json = body => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+
+/** Sample new customers for the gap check and the agent. */
+export const SAMPLES = {
+  airlines: { file: '/samples/airlines.md', geo: 'CA', name: 'Polar Wings' },
+  technology: { file: '/samples/technology.md', geo: 'US', name: 'Lumen Apps' },
+}

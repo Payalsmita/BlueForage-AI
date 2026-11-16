@@ -9,6 +9,91 @@ servers:
 - url: http://localhost:8080
   description: Generated server url
 paths:
+  /api/runs:
+    get:
+      tags:
+      - api
+      summary: "List Implementation Agent runs, newest first"
+      operationId: runs
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RunSummary"
+    post:
+      tags:
+      - api
+      summary: "(LLM) Start an Implementation Agent run for a new customer; runs in\
+        \ the background, poll GET /api/runs/{id}"
+      operationId: startRun
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AgentRun"
+  /api/runs/{id}/approval:
+    post:
+      tags:
+      - api
+      summary: Consultant approves or rejects the handover
+      operationId: approveRun
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AgentRun"
+  /api/runs/{id}/answers:
+    post:
+      tags:
+      - api
+      summary: "(LLM) Answer the agent's questions (choice INCLUDE/EXCLUDE/UNSURE,\
+        \ or free text the agent interprets); resumes the run"
+      operationId: answerRun
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnswersRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AgentRun"
   /api/extractions/{docId}:
     post:
       tags:
@@ -214,6 +299,66 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/Blueprint"
+  /api/runs/{id}:
+    get:
+      tags:
+      - api
+      summary: "Get a run: status, agent steps with reasoning, and every artifact\
+        \ produced so far"
+      operationId: run
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AgentRun"
+  /api/runs/{id}/handover.md:
+    get:
+      tags:
+      - api
+      summary: "Handover pack (Markdown): requirements, decisions, validation, UAT,\
+        \ open items, agent activity"
+      operationId: handover
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            text/markdown:
+              schema:
+                type: string
+  /api/runs/{id}/config.json:
+    get:
+      tags:
+      - api
+      summary: The run's drafted MOCK iCIMS-style configuration
+      operationId: runConfig
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties: {}
   /api/groups:
     get:
       tags:
@@ -348,6 +493,111 @@ paths:
                 additionalProperties: {}
 components:
   schemas:
+    StartRequest:
+      type: object
+      properties:
+        industry:
+          type: string
+        workflowType:
+          type: string
+        customerName:
+          type: string
+        geography:
+          type: string
+        notes:
+          type: string
+    AgentRun:
+      type: object
+      properties:
+        id:
+          type: string
+        industry:
+          type: string
+        workflowType:
+          type: string
+        customerName:
+          type: string
+        geography:
+          type: string
+        notes:
+          type: string
+        status:
+          type: string
+          enum:
+          - RUNNING
+          - WAITING_FOR_ANSWERS
+          - WAITING_FOR_APPROVAL
+          - COMPLETED
+          - REJECTED
+          - FAILED
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        error:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/Step"
+        requirements:
+          $ref: "#/components/schemas/Patterns"
+        selfCheckAdded:
+          type: integer
+          format: int32
+        gaps:
+          $ref: "#/components/schemas/GapReport"
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Question"
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Answer"
+        decisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Decision"
+        finalItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/FinalItem"
+        config:
+          type: object
+          additionalProperties: {}
+        validation:
+          type: array
+          items:
+            $ref: "#/components/schemas/Check"
+        revisions:
+          type: integer
+          format: int32
+        uat:
+          type: array
+          items:
+            $ref: "#/components/schemas/TestCase"
+        uatCoverage:
+          $ref: "#/components/schemas/Coverage"
+        handoverReady:
+          type: boolean
+        openItems:
+          type: array
+          items:
+            type: string
+        approvalComment:
+          type: string
+    Answer:
+      type: object
+      properties:
+        questionId:
+          type: string
+        choice:
+          type: string
+        text:
+          type: string
     ApprovalRule:
       type: object
       properties:
@@ -361,29 +611,124 @@ components:
           type: array
           items:
             type: string
-    DocMeta:
+    Check:
+      type: object
+      properties:
+        id:
+          type: string
+        severity:
+          type: string
+        check:
+          type: string
+        message:
+          type: string
+        ref:
+          type: string
+        autoFixable:
+          type: boolean
+    Coverage:
+      type: object
+      properties:
+        covered:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int32
+        uncovered:
+          type: array
+          items:
+            type: string
+    Decision:
+      type: object
+      properties:
+        questionId:
+          type: string
+        itemName:
+          type: string
+        choice:
+          type: string
+        rationale:
+          type: string
+        interpretedByAgent:
+          type: boolean
+    Evidence:
       type: object
       properties:
         docId:
           type: string
-        filename:
+        quote:
           type: string
+    FinalItem:
+      type: object
+      properties:
+        ref:
+          type: string
+        kind:
+          type: string
+          enum:
+          - STAGE
+          - ROLE
+          - APPROVAL_RULE
+        name:
+          type: string
+        source:
+          type: string
+        blueprintItemId:
+          type: string
+        peerSupport:
+          type: string
+        approvers:
+          type: array
+          items:
+            type: string
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/Evidence"
+        order:
+          type: number
+          format: double
+    GapFinding:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - MISSING
+          - UNIQUE
+          - ALIGNED
+        kind:
+          type: string
+          enum:
+          - STAGE
+          - ROLE
+          - APPROVAL_RULE
+        name:
+          type: string
+        blueprintItemId:
+          type: string
+        peerSupport:
+          type: string
+        customerQuotes:
+          type: array
+          items:
+            type: string
+        message:
+          type: string
+    GapReport:
+      type: object
+      properties:
         industry:
-          type: string
-        geography:
           type: string
         workflowType:
           type: string
-    Extraction:
-      type: object
-      properties:
-        doc:
-          $ref: "#/components/schemas/DocMeta"
-        patterns:
-          $ref: "#/components/schemas/Patterns"
-        droppedQuotes:
-          type: integer
-          format: int32
+        geography:
+          type: string
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/GapFinding"
     Patterns:
       type: object
       properties:
@@ -399,6 +744,33 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ApprovalRule"
+    Question:
+      type: object
+      properties:
+        id:
+          type: string
+        findingType:
+          type: string
+          enum:
+          - MISSING
+          - UNIQUE
+          - ALIGNED
+        kind:
+          type: string
+          enum:
+          - STAGE
+          - ROLE
+          - APPROVAL_RULE
+        itemName:
+          type: string
+        blueprintItemId:
+          type: string
+        peerSupport:
+          type: string
+        question:
+          type: string
+        why:
+          type: string
     Role:
       type: object
       properties:
@@ -424,6 +796,84 @@ components:
           type: array
           items:
             type: string
+    Step:
+      type: object
+      properties:
+        "n":
+          type: integer
+          format: int32
+        tool:
+          type: string
+        title:
+          type: string
+        reasoning:
+          type: string
+        status:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        summary:
+          type: string
+    TestCase:
+      type: object
+      properties:
+        id:
+          type: string
+        requirementRef:
+          type: string
+        type:
+          type: string
+        title:
+          type: string
+        steps:
+          type: array
+          items:
+            type: string
+        expected:
+          type: string
+    ApprovalRequest:
+      type: object
+      properties:
+        approved:
+          type: boolean
+        comment:
+          type: string
+    AnswersRequest:
+      type: object
+      properties:
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Answer"
+    DocMeta:
+      type: object
+      properties:
+        docId:
+          type: string
+        filename:
+          type: string
+        industry:
+          type: string
+        geography:
+          type: string
+        workflowType:
+          type: string
+    Extraction:
+      type: object
+      properties:
+        doc:
+          $ref: "#/components/schemas/DocMeta"
+        patterns:
+          $ref: "#/components/schemas/Patterns"
+        droppedQuotes:
+          type: integer
+          format: int32
+        selfCheck:
+          $ref: "#/components/schemas/Patterns"
     Blueprint:
       type: object
       properties:
@@ -492,13 +942,6 @@ components:
           type: array
           items:
             type: string
-    Evidence:
-      type: object
-      properties:
-        docId:
-          type: string
-        quote:
-          type: string
     GeoSupport:
       type: object
       properties:
@@ -532,46 +975,6 @@ components:
           type: string
         geography:
           type: string
-    GapFinding:
-      type: object
-      properties:
-        type:
-          type: string
-          enum:
-          - MISSING
-          - UNIQUE
-          - ALIGNED
-        kind:
-          type: string
-          enum:
-          - STAGE
-          - ROLE
-          - APPROVAL_RULE
-        name:
-          type: string
-        blueprintItemId:
-          type: string
-        peerSupport:
-          type: string
-        customerQuotes:
-          type: array
-          items:
-            type: string
-        message:
-          type: string
-    GapReport:
-      type: object
-      properties:
-        industry:
-          type: string
-        workflowType:
-          type: string
-        geography:
-          type: string
-        findings:
-          type: array
-          items:
-            $ref: "#/components/schemas/GapFinding"
     Review:
       type: object
       properties:
@@ -584,6 +987,31 @@ components:
           - REJECTED
         editedDetail:
           type: string
+    RunSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        customerName:
+          type: string
+        industry:
+          type: string
+        workflowType:
+          type: string
+        geography:
+          type: string
+        status:
+          type: string
+          enum:
+          - RUNNING
+          - WAITING_FOR_ANSWERS
+          - WAITING_FOR_APPROVAL
+          - COMPLETED
+          - REJECTED
+          - FAILED
+        createdAt:
+          type: string
+          format: date-time
     Group:
       type: object
       properties:
@@ -616,6 +1044,13 @@ components:
           type: integer
           format: int32
         quotesDropped:
+          type: integer
+          format: int32
+        withoutSelfCheck:
+          type: array
+          items:
+            $ref: "#/components/schemas/KindScore"
+        selfCheckAdded:
           type: integer
           format: int32
     KindScore:

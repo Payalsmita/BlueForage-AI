@@ -26,13 +26,25 @@ public class Extractor {
             Ignore stages or checks the document says are NOT used.
             """;
 
+    static final String SELF_CHECK = """
+            You are double-checking another analyst's extraction from a recruiting-system implementation document.
+            Compare the DOCUMENT with the EXTRACTED list. Return ONLY items that the document states but the list is missing:
+            hiring stages, roles (people or teams who do hiring work), and approval/sign-off/notification rules.
+            Quote the full sentence for each, copied exactly. Never repeat an item already in the list.
+            Return empty lists if nothing is missing.
+            """;
+
     private final Llm llm;
     private final DocStore docs;
     private final JsonMapper json;
     private final Path cacheDir;
 
-    public Extractor(Llm llm, DocStore docs, JsonMapper json, @Value("${blueprint.data-dir}") String dataDir) {
+    private final boolean selfCheck;
+
+    public Extractor(Llm llm, DocStore docs, JsonMapper json, @Value("${blueprint.data-dir}") String dataDir,
+                     @Value("${blueprint.self-check:true}") boolean selfCheck) {
         this.llm = llm;
+        this.selfCheck = selfCheck;
         this.docs = docs;
         this.json = json;
         this.cacheDir = Path.of(dataDir, "extractions");
@@ -59,10 +71,47 @@ public class Extractor {
      */
     private Extraction run(DocMeta doc, String text) {
         String prompt = "<document id=\"" + doc.docId() + "\">\n" + text + "\n</document>";
-        Extraction first = checkEvidence(doc, llm.structured(Patterns.class, SYSTEM, prompt), text);
-        if (!first.patterns().stages().isEmpty() && !first.patterns().approvalRules().isEmpty()) return first;
-        Extraction second = checkEvidence(doc, llm.structured(Patterns.class, SYSTEM, prompt), text);
-        return size(second) > size(first) ? second : first;
+        Extraction best = checkEvidence(doc, llm.structured(Patterns.class, SYSTEM, prompt), text);
+        if (best.patterns().stages().isEmpty() || best.patterns().approvalRules().isEmpty()) {
+            Extraction second = checkEvidence(doc, llm.structured(Patterns.class, SYSTEM, prompt), text);
+            if (size(second) > size(best)) best = second;
+        }
+        if (!selfCheck) return best;
+        // Second pass: the model reviews its own list against the document; additions go through the same quote check.
+        Patterns additions = checkEvidence(doc, llm.structured(Patterns.class, SELF_CHECK,
+                prompt + "\n\nEXTRACTED:\n" + listing(best.patterns())), text).patterns();
+        return merge(best, additions);
+    }
+
+    static String listing(Patterns p) {
+        var sb = new StringBuilder();
+        p.stages().forEach(s -> sb.append("STAGE | ").append(s.name()).append("\n"));
+        p.roles().forEach(r -> sb.append("ROLE | ").append(r.name()).append("\n"));
+        p.approvalRules().forEach(r -> sb.append("APPROVAL_RULE | ").append(r.trigger()).append("\n"));
+        return sb.toString();
+    }
+
+    /** Adds self-check items that aren't already present (same name, or same quote). */
+    static Extraction merge(Extraction base, Patterns additions) {
+        Patterns p = base.patterns();
+        var seen = new java.util.HashSet<String>();
+        p.stages().forEach(s -> { seen.add("S|" + norm(s.name())); s.quotes().forEach(q -> seen.add("Q|" + norm(q))); });
+        p.roles().forEach(r -> { seen.add("R|" + norm(r.name())); r.quotes().forEach(q -> seen.add("Q|" + norm(q))); });
+        p.approvalRules().forEach(r -> { seen.add("A|" + norm(r.trigger())); r.quotes().forEach(q -> seen.add("Q|" + norm(q))); });
+        var stages = additions.stages().stream().filter(s -> seen.add("S|" + norm(s.name()))).toList();
+        var roles = additions.roles().stream().filter(r -> seen.add("R|" + norm(r.name()))).toList();
+        var rules = additions.approvalRules().stream()
+                .filter(r -> r.quotes().stream().noneMatch(q -> seen.contains("Q|" + norm(q))) && seen.add("A|" + norm(r.trigger())))
+                .toList();
+        var added = new Patterns(stages, roles, rules);
+        var merged = new Patterns(concat(p.stages(), stages), concat(p.roles(), roles), concat(p.approvalRules(), rules));
+        return new Extraction(base.doc(), merged, base.droppedQuotes(), added);
+    }
+
+    private static <T> List<T> concat(List<T> a, List<T> b) {
+        var out = new java.util.ArrayList<T>(a);
+        out.addAll(b);
+        return out;
     }
 
     static int size(Extraction e) {

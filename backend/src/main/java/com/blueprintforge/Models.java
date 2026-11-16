@@ -27,7 +27,13 @@ public final class Models {
     public record Patterns(List<Stage> stages, List<Role> roles, List<ApprovalRule> approvalRules) {}
 
     /** Cached per doc in data/extractions/{docId}.json. droppedQuotes = quotes that failed the verbatim check. */
-    public record Extraction(DocMeta doc, Patterns patterns, int droppedQuotes) {}
+    /** selfCheck = items the self-check pass recovered (already merged into patterns); null if it didn't run. */
+    public record Extraction(DocMeta doc, Patterns patterns, int droppedQuotes, Patterns selfCheck) {
+        public Extraction(DocMeta doc, Patterns patterns, int droppedQuotes) { this(doc, patterns, droppedQuotes, null); }
+        public int selfCheckAdded() {
+            return selfCheck == null ? 0 : selfCheck.stages().size() + selfCheck.roles().size() + selfCheck.approvalRules().size();
+        }
+    }
 
     // ---- LLM normalization / synthesis output ----
     public enum Kind { STAGE, ROLE, APPROVAL_RULE }
@@ -99,6 +105,8 @@ public final class Models {
     public record KindScore(Kind kind, int expected, int extracted, int matched, double precision, double recall,
                             List<String> missed, List<String> extra) {}
 
+    /** withoutSelfCheck: the same scoring with self-check additions removed, to measure what the second pass adds. */
     public record EvalReport(String industry, String workflowType, int docsEvaluated, List<String> docsSkipped,
-                             List<KindScore> scores, int quotesKept, int quotesDropped) {}
+                             List<KindScore> scores, int quotesKept, int quotesDropped,
+                             List<KindScore> withoutSelfCheck, int selfCheckAdded) {}
 }

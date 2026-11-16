@@ -38,18 +38,19 @@ public class GapChecker {
     public GapReport check(String industry, String workflowType, GapRequest req) {
         if (req.text() == null || req.text().isBlank())
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "text is required");
-        Blueprint bp = blueprints.get(industry, workflowType);
-        Patterns customer = extractor.extractText(req.text()).patterns();
+        String geo = req.geography() == null ? null : req.geography().trim().toUpperCase();
+        return compare(blueprints.get(industry, workflowType), extractor.extractText(req.text()).patterns(), geo);
+    }
 
+    /** Compare already-extracted customer requirements with a blueprint (used by the gap check and the agent). */
+    public GapReport compare(Blueprint bp, Patterns customer, String geo) {
         var bpList = active(bp).stream().map(i -> i.kind() + " | " + i.name()).collect(Collectors.joining("\n"));
         var custList = Blueprints.mentions(List.of(new Extraction(new DocMeta("CUSTOMER", "", "", "", ""), customer, 0)))
                 .stream().map(m -> m.kind() + " | " + m.name()).distinct().collect(Collectors.joining("\n"));
         Map<String, String> mapping = custList.isEmpty() ? Map.of() : toMapping(
                 llm.structured(Matches.class, MATCH_SYSTEM, "BLUEPRINT:\n" + bpList + "\n\nCUSTOMER:\n" + custList).matches(),
                 customer, bp);
-
-        String geo = req.geography() == null ? null : req.geography().trim().toUpperCase();
-        return new GapReport(industry, workflowType, geo, diff(bp, customer, mapping, geo));
+        return new GapReport(bp.industry(), bp.workflowType(), geo, diff(bp, customer, mapping, geo));
     }
 
     static String stripKind(String s) {

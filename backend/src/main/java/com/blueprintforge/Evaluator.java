@@ -83,12 +83,30 @@ public class Evaluator {
 
     static EvalReport score(String industry, String workflowType, List<Extraction> extractions,
                             Map<String, Map<Kind, List<String>>> answers, List<String> skipped) {
-        var scores = new ArrayList<KindScore>();
-        int kept = 0, dropped = 0;
+        int kept = 0, dropped = 0, added = 0;
         for (Extraction e : extractions) {
             dropped += e.droppedQuotes();
+            added += e.selfCheckAdded();
             for (Kind k : Kind.values()) kept += items(e.patterns(), k).stream().mapToInt(i -> i.quotes().size()).sum();
         }
+        var baseline = extractions.stream().map(Evaluator::withoutSelfCheck).toList();
+        return new EvalReport(industry, workflowType, extractions.size(), skipped, scores(extractions, answers),
+                kept, dropped, added > 0 ? scores(baseline, answers) : null, added);
+    }
+
+    /** The extraction as it was before the self-check pass merged its additions in. */
+    static Extraction withoutSelfCheck(Extraction e) {
+        if (e.selfCheck() == null) return e;
+        var p = e.patterns();
+        var a = e.selfCheck();
+        return new Extraction(e.doc(), new Patterns(
+                p.stages().stream().filter(x -> !a.stages().contains(x)).toList(),
+                p.roles().stream().filter(x -> !a.roles().contains(x)).toList(),
+                p.approvalRules().stream().filter(x -> !a.approvalRules().contains(x)).toList()), e.droppedQuotes());
+    }
+
+    static List<KindScore> scores(List<Extraction> extractions, Map<String, Map<Kind, List<String>>> answers) {
+        var scores = new ArrayList<KindScore>();
         for (Kind k : Kind.values()) {
             int expected = 0, extracted = 0, matchedCount = 0;
             var missed = new ArrayList<String>();
@@ -112,6 +130,6 @@ public class Evaluator {
                     extracted == 0 ? 0 : (double) matchedCount / extracted,
                     expected == 0 ? 0 : (double) matchedCount / expected, missed, extra));
         }
-        return new EvalReport(industry, workflowType, extractions.size(), skipped, scores, kept, dropped);
+        return scores;
     }
 }

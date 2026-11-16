@@ -17,8 +17,11 @@ public class Api {
     private final Blueprints blueprints;
     private final GapChecker gaps;
     private final Evaluator evaluator;
+    private final ImplementationAgent agent;
 
-    public Api(DocStore docs, Extractor extractor, Blueprints blueprints, GapChecker gaps, Evaluator evaluator) {
+    public Api(DocStore docs, Extractor extractor, Blueprints blueprints, GapChecker gaps, Evaluator evaluator,
+               ImplementationAgent agent) {
+        this.agent = agent;
         this.docs = docs;
         this.extractor = extractor;
         this.blueprints = blueprints;
@@ -110,6 +113,41 @@ public class Api {
     @GetMapping("/eval/{industry}/{workflowType}")
     public EvalReport eval(@PathVariable String industry, @PathVariable String workflowType) {
         return evaluator.evaluate(industry, workflowType);
+    }
+
+    // ---- Implementation Agent ----
+
+    @Operation(summary = "(LLM) Start an Implementation Agent run for a new customer; runs in the background, poll GET /api/runs/{id}")
+    @PostMapping("/runs")
+    public AgentRun startRun(@RequestBody ImplementationAgent.StartRequest req) { return agent.start(req); }
+
+    @Operation(summary = "List Implementation Agent runs, newest first")
+    @GetMapping("/runs")
+    public List<ImplementationAgent.RunSummary> runs() { return agent.list(); }
+
+    @Operation(summary = "Get a run: status, agent steps with reasoning, and every artifact produced so far")
+    @GetMapping("/runs/{id}")
+    public AgentRun run(@PathVariable String id) { return agent.get(id); }
+
+    @Operation(summary = "(LLM) Answer the agent's questions (choice INCLUDE/EXCLUDE/UNSURE, or free text the agent interprets); resumes the run")
+    @PostMapping("/runs/{id}/answers")
+    public AgentRun answerRun(@PathVariable String id, @RequestBody ImplementationAgent.AnswersRequest req) { return agent.answer(id, req); }
+
+    @Operation(summary = "Consultant approves or rejects the handover")
+    @PostMapping("/runs/{id}/approval")
+    public AgentRun approveRun(@PathVariable String id, @RequestBody ImplementationAgent.ApprovalRequest req) { return agent.approve(id, req); }
+
+    @Operation(summary = "Handover pack (Markdown): requirements, decisions, validation, UAT, open items, agent activity")
+    @GetMapping(value = "/runs/{id}/handover.md", produces = "text/markdown")
+    public String handover(@PathVariable String id) { return agent.handoverMarkdown(id); }
+
+    @Operation(summary = "The run's drafted MOCK iCIMS-style configuration")
+    @GetMapping("/runs/{id}/config.json")
+    public java.util.Map<String, Object> runConfig(@PathVariable String id) {
+        var r = agent.get(id);
+        if (r.config == null) throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.CONFLICT, "The run hasn't drafted a configuration yet");
+        return r.config;
     }
 
     /** Every error returns {"message": ...} so the UI can show it. */

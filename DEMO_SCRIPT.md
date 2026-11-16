@@ -51,6 +51,19 @@
 3. Open **missed / extra** to show it's honest:
    > "Where it disagrees, we can see exactly where and why. For example, it didn't count a District Manager who only approves things as a hiring role. That was by design."
 
+## Optional +3 min · Implementation Agent (the agentic finale)
+
+1. Go to **5 Implementation Agent**, click **Load sample customer** (Polar Wings, CA), then **Run agent**.
+2. Narrate the **Agent activity** timeline as it fills in. Every step shows the agent's reason:
+   > "It reads the kickoff notes, double-checks its own extraction, then compares the customer with 6 peer airlines."
+3. It **pauses with questions**. Answer two with the buttons, then paste a reply for the rest, for example *"Yes to the background check and requisition approval, no knowledge test."*
+   > "The consultant stays in charge. The agent interprets the reply and labels those decisions 'AI-interpreted'."
+4. Watch **Configure → Validate ↺ Revise**:
+   > "It drafts the iCIMS config, validates it with deterministic checks, fixes what's safe to fix itself, for example adding user roles for approvers, and re-validates."
+5. Open **UAT** (coverage bar) and **Handover**, then click **Approve**.
+   > "From kickoff notes to a validated config, tests and a handover pack in a couple of minutes, with a human approving the result."
+6. *(Optional)* Show the same flow from Claude or Copilot through the **MCP server**: "start an implementation for Polar Wings…".
+
 ## 4:10–4:40 · It works for any industry
 
 1. Switch the dropdown to **retail · store-associate** and point at **Order differences**:

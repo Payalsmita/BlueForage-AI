@@ -149,6 +149,79 @@ class PipelineTest {
         assertEquals(List.of("Works Council"), chain.get("approvers"));
     }
 
+    @Test
+    void agentGuardrailsAllowOnlySensibleNextSteps() {
+        var run = new AgentRun();
+        run.customerName = "X"; run.geography = "CA";
+        assertEquals(List.of("extract_requirements"), ImplementationAgent.allowedTools(run));
+        run.requirements = new Patterns(List.of(), List.of(), List.of());
+        assertEquals(List.of("gap_check"), ImplementationAgent.allowedTools(run));
+        run.gaps = new GapReport("a", "p", "CA", List.of(new GapFinding(GapType.MISSING, Kind.STAGE, "Background Check", "STG-01", "6/6", List.of(), "")));
+        assertEquals(List.of("draft_questions", "draft_config"), ImplementationAgent.allowedTools(run)); // agent may choose
+        run.questions = List.of();
+        assertEquals(List.of("apply_answers"), ImplementationAgent.allowedTools(run));
+        run.decisions = List.of();
+        assertEquals(List.of("draft_config"), ImplementationAgent.allowedTools(run));
+        run.finalItems = List.of();
+        assertEquals(List.of("validate_config"), ImplementationAgent.allowedTools(run));
+        run.validation = List.of(new AgentRun.Check("V1", "WARN", "Approver roles", "m", null, true));
+        assertEquals(List.of("revise_config", "generate_uat"), ImplementationAgent.allowedTools(run));
+        run.revisions = ImplementationAgent.MAX_REVISIONS;
+        assertEquals(List.of("generate_uat"), ImplementationAgent.allowedTools(run)); // loop is bounded
+        run.uat = List.of();
+        assertEquals(List.of("handover"), ImplementationAgent.allowedTools(run));
+        run.handoverReady = true;
+        assertEquals(List.of(), ImplementationAgent.allowedTools(run));
+    }
+
+    @Test
+    void agentValidationFindsIssuesAndReviseFixesThem() {
+        var bp = new Blueprint("airlines", "pilot", List.of("A", "B"), List.of(
+                item("STG-01", Kind.STAGE, "Panel Interview", 2, 2, List.of()),
+                item("STG-02", Kind.STAGE, "Offer", 2, 2, List.of())));
+        var run = new AgentRun();
+        run.customerName = "Polar Wings"; run.geography = "CA";
+        var ev = List.of(new Evidence("CUSTOMER", "q"));
+        run.finalItems = List.of(
+                new AgentRun.FinalItem("STG-02", Kind.STAGE, "Offer", "CUSTOMER_STATED", "STG-02", "2/2", List.of(), ev, 1.0), // offer first: wrong order
+                new AgentRun.FinalItem("STG-01", Kind.STAGE, "Panel Interview", "CUSTOMER_STATED", "STG-01", "2/2", List.of(), ev, 2.0),
+                new AgentRun.FinalItem("CUS-01", Kind.APPROVAL_RULE, "Offer above pay band", "CUSTOM", null, "0/2", List.of("VP Flight Ops"), ev, null));
+        run.config = ImplementationAgent.buildConfig(run, bp);
+
+        var checks = ImplementationAgent.validate(run);
+        assertEquals("WARN", sev(checks, "Approver roles"));
+        assertEquals("WARN", sev(checks, "Stage order"));
+        assertEquals("PASS", sev(checks, "Requirement coverage"));
+
+        run.validation = checks;
+        String summary = ImplementationAgent.revise(run, bp);
+        assertTrue(summary.contains("VP Flight Ops"), summary);
+        var after = ImplementationAgent.validate(run);
+        assertEquals("PASS", sev(after, "Approver roles"));
+        assertEquals("PASS", sev(after, "Stage order"));
+        assertEquals(1, run.revisions);
+    }
+
+    static String sev(List<AgentRun.Check> cs, String check) {
+        return cs.stream().filter(c -> c.check().equals(check)).findFirst().orElseThrow().severity();
+    }
+
+    @Test
+    void selfCheckMergeAddsOnlyNewItems() {
+        var base = new Extraction(doc("A"), new Patterns(List.of(new Stage("Offer", 1, List.of("We make an offer."))), List.of(),
+                List.of(new ApprovalRule("Requisitions", List.of(), List.of("Requisitions need VP approval.")))), 0);
+        var additions = new Patterns(
+                List.of(new Stage("offer", 2, List.of("x")), new Stage("Background Check", 3, List.of("We run checks."))),
+                List.of(),
+                List.of(new ApprovalRule("Req approval", List.of(), List.of("Requisitions need VP approval.")), // same quote: duplicate
+                        new ApprovalRule("Works Council", List.of(), List.of("Every hire needs Works Council approval."))));
+        Extraction merged = Extractor.merge(base, additions);
+        assertEquals(List.of("Offer", "Background Check"), merged.patterns().stages().stream().map(Stage::name).toList());
+        assertEquals(2, merged.patterns().approvalRules().size());
+        assertEquals(2, merged.selfCheckAdded());
+        assertEquals(base.patterns().stages().size(), Evaluator.withoutSelfCheck(merged).patterns().stages().size());
+    }
+
     static List<String> names(List<GapFinding> fs, GapType t) {
         return fs.stream().filter(f -> f.type() == t).map(GapFinding::name).toList();
     }
