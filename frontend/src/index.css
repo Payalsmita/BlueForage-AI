@@ -3,19 +3,19 @@
    yellow highlighter only for what code verified. Dark mode is the cyanotype original. */
 
 :root {
-  --desk: #d9e0ec;
+  --desk: #d9dde5;
   --paper: #f6f8fb;
-  --paper-2: #eaeff7;
-  --ink: #1b3a8f;
+  --paper-2: #eceef3;
+  --ink: #24365f;
   --text: #0e1726;
   --muted: #44537a;
-  --hair: rgb(27 58 143 / 0.24);
-  --grid: rgb(27 58 143 / 0.055);
-  --hatch: rgb(27 58 143 / 0.2);
+  --hair: rgb(36 54 95 / 0.24);
+  --grid: rgb(36 54 95 / 0.055);
+  --hatch: rgb(36 54 95 / 0.2);
   --red: #c41d16;
   --hl: #ffe76a;
   --hl-text: #0e1726;
-  --sel: #dde5f5;
+  --sel: #dfe3ec;
   --sans: 'Archivo Variable', 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, Menlo, monospace;
   --cloud: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M8 8A4 4 0 0 1 16 8A4 4 0 0 1 16 16A4 4 0 0 1 8 16A4 4 0 0 1 8 8' fill='none' stroke='%23c41d16' stroke-width='1.6'/%3E%3C/svg%3E");
@@ -23,9 +23,9 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --desk: #071a3d;
-    --paper: #0f2c63;
-    --paper-2: #0b2452;
+    --desk: #0e172a;
+    --paper: #172645;
+    --paper-2: #132039;
     --ink: #eef3ff;
     --text: #f4f7ff;
     --muted: #bccbee;
@@ -35,7 +35,7 @@
     --red: #ff9a90;
     --hl: #ffe76a;
     --hl-text: #0e1726;
-    --sel: #1a3c7d;
+    --sel: #22314f;
     --cloud: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M8 8A4 4 0 0 1 16 8A4 4 0 0 1 16 16A4 4 0 0 1 8 16A4 4 0 0 1 8 8' fill='none' stroke='%23ff9a90' stroke-width='1.6'/%3E%3C/svg%3E");
     color-scheme: dark;
   }
