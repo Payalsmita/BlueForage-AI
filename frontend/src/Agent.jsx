@@ -1,34 +1,41 @@
 import { useEffect, useRef, useState } from 'react'
 import { KIND, SAMPLES, api, json, pct } from './api.js'
 import { Findings } from './Panels.jsx'
+import { Callout, Delta, Dimension, Icon, Stamp, Tag, Verified } from './Draft.jsx'
 
-/** Colour for any enum value the run returns. */
-const TONE = {
-  RUNNING: 'brand', WAITING_FOR_ANSWERS: 'warn', WAITING_FOR_APPROVAL: 'warn', COMPLETED: 'ok', REJECTED: 'bad', FAILED: 'bad',
-  DONE: 'ok', PASS: 'ok', WARN: 'warn', FAIL: 'bad', POSITIVE: 'ok', NEGATIVE: 'bad', EDGE: 'warn',
-  INCLUDE: 'ok', EXCLUDE: 'bad', UNSURE: 'warn', CUSTOMER_STATED: 'brand', PEER_CONFIRMED: 'ok', CUSTOM: 'warn',
-  MISSING: 'bad', UNIQUE: 'warn', ALIGNED: 'ok',
+/** Words and tags for every enum value the run returns. */
+const LABEL = {
+  RUNNING: 'Drawing', WAITING_FOR_ANSWERS: 'Hold: answers', WAITING_FOR_APPROVAL: 'Hold: approval', COMPLETED: 'Approved',
+  REJECTED: 'Rejected', FAILED: 'Failed', CUSTOMER_STATED: 'Customer stated', PEER_CONFIRMED: 'Peer practice, confirmed',
+  CUSTOM: 'Customer-specific', DERIVED: 'Added by agent', INCLUDE: 'Include', EXCLUDE: 'Exclude', UNSURE: 'Unsure',
+  POSITIVE: 'Positive', NEGATIVE: 'Negative', EDGE: 'Edge', PASS: 'Pass', WARN: 'Warn', FAIL: 'Fail', MISSING: 'Missing', UNIQUE: 'Unique',
 }
-const Pill = ({ v, children }) => <span className={`pill tone-${TONE[v] || 'none'}`}>{children ?? String(v ?? '').toLowerCase().replaceAll('_', ' ')}</span>
+const KINDOF = {
+  RUNNING: 'ink', WAITING_FOR_ANSWERS: 'hold', WAITING_FOR_APPROVAL: 'hold', COMPLETED: 'ink', REJECTED: 'redline', FAILED: 'redline',
+  CUSTOMER_STATED: 'ink', PEER_CONFIRMED: 'ink', CUSTOM: 'ink', DERIVED: 'redline',
+  INCLUDE: 'ink', EXCLUDE: 'redline', UNSURE: 'hold', POSITIVE: 'ink', NEGATIVE: 'redline', EDGE: 'ink',
+  PASS: 'ink', WARN: 'hold', FAIL: 'redline', MISSING: 'redline', UNIQUE: 'ink',
+}
+const T = ({ v, children }) => <Tag kind={KINDOF[v] || 'muted'} icon={v === 'PASS' || v === 'COMPLETED' ? 'check' : v === 'FAIL' || v === 'REJECTED' ? 'cross' : v?.startsWith?.('WAITING') ? 'pause' : undefined}>{children ?? LABEL[v] ?? v}</Tag>
 
-/** The agent's phases, mapped to the tools it calls (steps[].tool) or the run status it waits in. */
+/** The construction sequence, mapped to the tools the agent calls or the hold it waits in. */
 const PHASES = [
   { label: 'Understand', tools: ['plan', 'extract_requirements', 'self_check'] },
   { label: 'Compare', tools: ['gap_check'] },
   { label: 'Ask', tools: ['draft_questions'] },
-  { label: '⏸ Consultant answers', wait: 'WAITING_FOR_ANSWERS', doneWhen: r => r.answers?.length > 0 || r.decisions?.length > 0 },
+  { label: 'Consultant answers', hold: 'WAITING_FOR_ANSWERS', doneWhen: r => r.answers?.length > 0 || r.decisions?.length > 0 },
   { label: 'Decide', tools: ['apply_answers'] },
   { label: 'Configure', tools: ['draft_config'] },
-  { label: 'Validate ↺ Revise', tools: ['validate_config', 'revise_config'], loop: true },
-  { label: 'Test (UAT)', tools: ['generate_uat'] },
+  { label: 'Validate & revise', tools: ['validate_config', 'revise_config'], loop: true },
+  { label: 'Test', tools: ['generate_uat'] },
   { label: 'Handover', tools: ['handover'] },
-  { label: '⏸ Consultant approval', wait: 'WAITING_FOR_APPROVAL', doneWhen: r => r.status === 'COMPLETED', failWhen: r => r.status === 'REJECTED' },
+  { label: 'Consultant approval', hold: 'WAITING_FOR_APPROVAL', doneWhen: r => r.status === 'COMPLETED', failWhen: r => r.status === 'REJECTED' },
 ]
 
 function phaseState(p, run) {
   const steps = run.steps || []
-  if (p.wait) {
-    if (run.status === p.wait) return 'waiting'
+  if (p.hold) {
+    if (run.status === p.hold) return 'hold'
     if (p.failWhen?.(run)) return 'failed'
     return p.doneWhen(run) ? 'done' : 'pending'
   }
@@ -53,6 +60,7 @@ export default function Agent({ g, hasBlueprint, openDoc, fail, setStatus }) {
   }
   const [run, setRun] = useState(null)
   const [poll, setPoll] = useState(0) // bump to resume polling after answers/approval
+  const lastStatus = useRef('')
   const [form, setForm] = useState({ customerName: '', geography: '', notes: '' })
   const [sending, setSending] = useState(false)
 
@@ -60,7 +68,7 @@ export default function Agent({ g, hasBlueprint, openDoc, fail, setStatus }) {
     e => (e.status === 404 || e.status === 405 ? setUnavailable(true) : fail(e)))
   useEffect(() => { loadRuns() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Poll the selected run every 1.5 s while the agent is working.
+  // Poll the selected run every 1.5 s while the agent is drawing.
   useEffect(() => {
     if (!runId) return
     let live = true, timer
@@ -69,6 +77,10 @@ export default function Agent({ g, hasBlueprint, openDoc, fail, setStatus }) {
         const r = await api(`/api/runs/${encodeURIComponent(runId)}`)
         if (!live) return
         setRun(r)
+        if (lastStatus.current !== `${r.id}:${r.status}`) { // log each status change in the title block's revision table
+          lastStatus.current = `${r.id}:${r.status}`
+          setStatus({ msg: `${r.customerName} (${r.id}): ${LABEL[r.status] || r.status}.`, error: r.status === 'FAILED' })
+        }
         if (r.status === 'RUNNING') timer = setTimeout(tick, 1500)
         else loadRuns()
       } catch (e) { if (live) fail(e) }
@@ -103,35 +115,37 @@ export default function Agent({ g, hasBlueprint, openDoc, fail, setStatus }) {
   return (
     <div className="agent">
       <aside className="agent-side">
-        <form className="card agent-form" onSubmit={start}>
-          <h2>New implementation</h2>
-          <p className="hint">Scenario: <b>{g.industry} · {g.workflowType}</b> (change it in the header).
-            {!hasBlueprint && <><br /><span className="warn-text">Generate this scenario's blueprint first.</span></>}</p>
-          <label>Customer name<input type="text" required value={form.customerName} onChange={set('customerName')} placeholder="e.g. Polar Wings" /></label>
-          <label>Country<input type="text" required size="5" value={form.geography} onChange={set('geography')} placeholder="e.g. CA" /></label>
-          <label>Kickoff notes / requirements<textarea required value={form.notes} onChange={set('notes')} style={{ minHeight: 160 }} /></label>
-          <div className="row">
-            <button type="button" className="small" onClick={loadSample}>Load sample customer</button>
-            <button className="primary" disabled={sending || unavailable} style={{ marginLeft: 'auto' }}>{sending ? 'Starting…' : 'Run agent'}</button>
+        <form className="field-form job-form" onSubmit={start} aria-labelledby="new-job">
+          <h3 id="new-job" className="col-head">New implementation</h3>
+          <p className="muted small">Project: <b>{g.industry} · {g.workflowType}</b> (change it in the title block).</p>
+          {!hasBlueprint && <p className="hold-note"><Icon name="pause" size={14} /> Generate this project's blueprint first.</p>}
+          <label className="field">Customer name<input type="text" required value={form.customerName} onChange={set('customerName')} placeholder="e.g. Polar Wings" /></label>
+          <label className="field">Country<input type="text" required size="6" value={form.geography} onChange={set('geography')} placeholder="e.g. CA" /></label>
+          <label className="field">Kickoff notes or requirements<textarea required value={form.notes} onChange={set('notes')} /></label>
+          <div className="field-row">
+            <button type="button" className="btn-small" onClick={loadSample}><Icon name="doc" size={14} /> Load sample customer</button>
+            <button className="btn-issue" disabled={sending || unavailable}>{sending ? 'Starting…' : 'Run agent'}</button>
           </div>
         </form>
-        <h2 style={{ marginTop: 20 }}>Runs <small>{runs.length}</small></h2>
-        {unavailable && <div className="empty" style={{ padding: 16 }}>The agent API isn't available on this backend yet. Restart the backend after updating it.</div>}
-        {!unavailable && runs.length === 0 && <div className="empty" style={{ padding: 16 }}>No runs yet.</div>}
-        <ul className="runs">
+
+        <h3 className="col-head">Jobs <span className="mono">{runs.length}</span></h3>
+        {unavailable && <p className="none">The agent API isn't available on this backend. Restart the backend after updating it.</p>}
+        {!unavailable && runs.length === 0 && <p className="none">No jobs yet.</p>}
+        <ul className="jobs">
           {[...runs].reverse().map(r => (
             <li key={r.id}>
-              <button className={r.id === runId ? 'sel' : ''} aria-current={r.id === runId ? 'true' : undefined} onClick={() => { setRunId(r.id); setRun(null) }}>
-                <span className="row"><b>{r.customerName}</b><Pill v={r.status} /></span>
-                <small>{r.industry} · {r.workflowType} · {r.geography} · {r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</small>
+              <button type="button" aria-current={r.id === runId ? 'true' : undefined} onClick={() => { setRunId(r.id); setRun(null) }}>
+                <span className="job-top"><b>{r.customerName}</b><T v={r.status} /></span>
+                <span className="mono small muted">{r.id} · {r.geography} · {r.createdAt ? new Date(r.createdAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : ''}</span>
               </button>
             </li>
           ))}
         </ul>
       </aside>
+
       <div className="agent-main">
         {!run
-          ? <div className="empty">{runId ? 'Loading run…' : 'Start a run or pick one from the list. The agent\'s phases, reasoning and outputs appear here.'}</div>
+          ? <div className="empty"><p>{runId ? 'Loading job…' : 'Start a job or open one from the list. The agent\'s sequence, reasoning and drawings appear here.'}</p></div>
           : <RunView run={run} send={send} openDoc={openDoc} />}
       </div>
     </div>
@@ -140,29 +154,29 @@ export default function Agent({ g, hasBlueprint, openDoc, fail, setStatus }) {
 
 function RunView({ run, send, openDoc }) {
   const steps = [...(run.steps || [])].sort((a, b) => a.n - b.n)
-  const finished = !['RUNNING'].includes(run.status)
+  const finished = run.status !== 'RUNNING'
   return (
     <>
-      <div className="run-head">
+      <header className="job-head">
         <div>
-          <h2 style={{ margin: 0 }}>{run.customerName}</h2>
-          <small>{run.industry} · {run.workflowType} · {run.geography}</small>
+          <h3>{run.customerName}</h3>
+          <p className="mono small muted">{run.id} · {run.industry} · {run.workflowType} · {run.geography}</p>
         </div>
-        <Pill v={run.status} />
-        <span className="hint" style={{ margin: 0 }}>elapsed {dur(secs(run.createdAt, finished ? run.updatedAt : null))}</span>
-      </div>
-      {run.status === 'FAILED' && <div className="banner bad"><b>Agent failed:</b> {run.error || 'unknown error'}</div>}
-      {run.status === 'WAITING_FOR_ANSWERS' && <div className="banner warn">⏸ The agent is waiting for a consultant to answer its questions (see <a href="#art-questions">Questions</a>).</div>}
-      {run.status === 'WAITING_FOR_APPROVAL' && <div className="banner warn">⏸ The handover is ready and waiting for consultant approval (see <a href="#art-handover">Handover</a>).</div>}
+        <T v={run.status} />
+        <span className="mono job-clock">{dur(secs(run.createdAt, finished ? run.updatedAt : null))}</span>
+      </header>
+      {run.status === 'FAILED' && <p className="hold-note err"><Icon name="cross" size={16} /> <b>The agent stopped:</b> {run.error || 'unknown error'}</p>}
+      {run.status === 'WAITING_FOR_ANSWERS' && <p className="hold-note"><Icon name="pause" size={16} /> <b>Hold.</b> The agent is waiting for the consultant's answers. <a href="#art-questions">Answer the questions</a></p>}
+      {run.status === 'WAITING_FOR_APPROVAL' && <p className="hold-note"><Icon name="pause" size={16} /> <b>Hold.</b> The handover is ready for the consultant's approval. <a href="#art-handover">Review and stamp it</a></p>}
 
-      <ol className="phases" aria-label="Agent phases">
-        {PHASES.map(p => {
+      <ol className="sequence" aria-label="Construction sequence">
+        {PHASES.map((p, n) => {
           const st = phaseState(p, run)
           return (
-            <li key={p.label} className={st}>
-              <span className="dot" aria-hidden="true" />
-              {p.label}{p.loop && run.revisions > 0 ? ` (${run.revisions}×)` : ''}
-              <small>{st}</small>
+            <li key={p.label} className={`seq-${st}${p.hold ? ' seq-holdpoint' : ''}${p.loop && run.revisions > 0 ? ' seq-revised cloud' : ''}`}>
+              <span className="seq-n mono">{n + 1}</span>
+              <span className="seq-label">{p.label}{p.loop && run.revisions > 0 && <> <Delta n={run.revisions} title={`Revised ${run.revisions} time(s)`} /></>}</span>
+              <span className="seq-state">{st === 'hold' ? 'hold' : st}</span>
             </li>
           )
         })}
@@ -174,42 +188,51 @@ function RunView({ run, send, openDoc }) {
   )
 }
 
+/** Time axis: each step's bar is as long as it took; reasoning and result beside it. */
 function Timeline({ steps }) {
   const box = useRef(null)
   const last = steps.at(-1)?.status
   useEffect(() => { if (box.current) box.current.scrollTop = box.current.scrollHeight }, [steps.length, last])
+  const lens = steps.map(s => secs(s.startedAt, s.status === 'RUNNING' ? null : s.finishedAt) ?? 0)
+  const max = Math.max(5, ...lens)
   return (
-    <div className="art">
-      <h2>Agent activity <small>{steps.length} steps</small></h2>
+    <section className="sub" aria-labelledby="activity">
+      <h3 id="activity" className="col-head">Agent activity <span className="mono">{steps.length}</span></h3>
       <ol className="timeline" ref={box}>
-        {steps.length === 0 && <li className="hint">Waiting for the agent to start…</li>}
-        {steps.map(s => (
-          <li key={s.n} className={s.status}>
-            <div className="row">
-              <span className="id">#{s.n}</span>
-              <code className="tool">{s.tool}</code>
-              <b>{s.title}</b>
-              {s.status === 'RUNNING' ? <span className="spinner" aria-label="running" /> : <Pill v={s.status} />}
-              <span className="hint" style={{ margin: 0 }}>{dur(secs(s.startedAt, s.finishedAt))}</span>
+        {steps.length === 0 && <li className="muted">Waiting for the agent to start…</li>}
+        {steps.map((s, k) => (
+          <li key={s.n} className={`tl-${s.status}${s.tool === 'revise_config' ? ' cloud' : ''}`}>
+            <span className="tl-n mono">{String(s.n).padStart(2, '0')}</span>
+            <div className="tl-body">
+              <div className="tl-head">
+                <code className="tl-tool">{s.tool}</code>
+                <b className="tl-title">{s.title}</b>
+                {s.tool === 'revise_config' && <Delta n={steps.slice(0, k + 1).filter(x => x.tool === 'revise_config').length} title="Revision by the agent" />}
+                {s.status === 'FAILED' && <Tag kind="redline" icon="cross">Failed</Tag>}
+              </div>
+              <div className="tl-bar">
+                <span className="tl-track"><span style={{ width: pct(lens[k] / max) }} className={s.status === 'RUNNING' ? 'plotting' : ''} /></span>
+                <span className="mono tl-dur">{dur(lens[k])}</span>
+              </div>
+              {s.reasoning && <p className="tl-reason"><span>Agent note</span> {s.reasoning}</p>}
+              {s.summary && <p className="tl-sum">{s.summary}</p>}
             </div>
-            {s.reasoning && <p className="reason"><i>Agent: {s.reasoning}</i></p>}
-            {s.summary && <p className="sum">{s.summary}</p>}
           </li>
         ))}
       </ol>
-    </div>
+    </section>
   )
 }
 
-/** Collapsible card, open by default; only rendered once its data exists. */
-const Art = ({ id, title, badge, children }) => (
-  <details className="art" id={id} open>
-    <summary><h2>{title} {badge}</h2></summary>
+/** A sub-drawing of the job; open by default and only rendered once its data exists. */
+const Sub = ({ id, title, badge, children }) => (
+  <details className="sub" id={id} open>
+    <summary><h3 className="col-head">{title} {badge}</h3></summary>
     {children}
   </details>
 )
 
-const Quotes = ({ qs }) => qs?.length ? <ul className="ev">{qs.map((q, k) => <li key={k}>“{q}”</li>)}</ul> : null
+const Quotes = ({ qs }) => qs?.length ? <ul className="quotes">{qs.map((q, k) => <li key={k}><Verified>{q}</Verified></li>)}</ul> : null
 
 function Artifacts({ run, send, openDoc }) {
   const req = run.requirements
@@ -217,86 +240,95 @@ function Artifacts({ run, send, openDoc }) {
   return (
     <>
       {req && (
-        <Art title="Requirements" badge={run.selfCheckAdded > 0 && <Pill v="DONE">self-check recovered {run.selfCheckAdded}</Pill>}>
-          <div className="cols">
-            <table>
+        <Sub title="Requirements from the notes" badge={run.selfCheckAdded > 0 && <Tag kind="ink" icon="check">Self-check recovered {run.selfCheckAdded}</Tag>}>
+          <div className="schedules">
+            <table className="schedule">
               <caption>Hiring stages</caption>
-              <thead><tr><th>#</th><th>Stage</th></tr></thead>
+              <thead><tr><th scope="col" className="num">No.</th><th scope="col">Stage</th></tr></thead>
               <tbody>{(req.stages || []).map((s, n) => <tr key={n}><td className="num">{s.order}</td><td>{s.name}<Quotes qs={s.quotes} /></td></tr>)}</tbody>
             </table>
-            <table>
+            <table className="schedule">
               <caption>Roles</caption>
-              <thead><tr><th>Role</th><th>Responsibilities</th></tr></thead>
+              <thead><tr><th scope="col">Role</th><th scope="col">Responsibilities</th></tr></thead>
               <tbody>{(req.roles || []).map((r, n) => <tr key={n}><td>{r.name}<Quotes qs={r.quotes} /></td><td>{(r.responsibilities || []).join('; ')}</td></tr>)}</tbody>
             </table>
-            <table>
+            <table className="schedule">
               <caption>Approval rules</caption>
-              <thead><tr><th>Trigger</th><th>Approvers</th></tr></thead>
+              <thead><tr><th scope="col">Trigger</th><th scope="col">Approvers</th></tr></thead>
               <tbody>{(req.approvalRules || []).map((r, n) => <tr key={n}><td>{r.trigger}<Quotes qs={r.quotes} /></td><td>{(r.approvers || []).join(', ')}</td></tr>)}</tbody>
             </table>
           </div>
-        </Art>
+        </Sub>
       )}
 
-      {run.gaps && <Art title="Gap analysis"><Findings findings={run.gaps.findings} /></Art>}
+      {run.gaps && <Sub title="Gap analysis"><Findings findings={run.gaps.findings} /></Sub>}
 
       {run.questions && <Questions run={run} send={send} />}
 
       {run.decisions?.length > 0 && (
-        <Art title="Decisions" badge={<small>{run.decisions.length}</small>}>
-          <table>
-            <thead><tr><th>Item</th><th>Decision</th><th>Rationale</th></tr></thead>
+        <Sub title="Decisions" badge={<span className="mono">{run.decisions.length}</span>}>
+          <table className="schedule">
+            <thead><tr><th scope="col">Item</th><th scope="col">Decision</th><th scope="col">Rationale</th></tr></thead>
             <tbody>
               {run.decisions.map((d, n) => (
                 <tr key={n}>
-                  <td>{d.itemName}</td>
-                  <td><Pill v={d.choice} /> {d.interpretedByAgent && <Pill v="UNIQUE">AI-interpreted</Pill>}</td>
+                  <th scope="row">{d.itemName}</th>
+                  <td><T v={d.choice} /> {d.interpretedByAgent && <Tag kind="muted">AI-interpreted</Tag>}</td>
                   <td>{d.rationale}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </Art>
+        </Sub>
       )}
 
       {run.finalItems?.length > 0 && (
-        <Art title="Final requirements" badge={<small>{run.finalItems.length}</small>}>
-          <div className="cols">
+        <Sub title="Final requirements" badge={<span className="mono">{run.finalItems.length}</span>}>
+          <div className="schedules">
             {Object.keys(KIND).map(k => {
               const items = run.finalItems.filter(i => i.kind === k)
               return (
-                <div key={k}>
-                  <h2>{KIND[k]} <small>{items.length}</small></h2>
-                  {items.map(i => (
-                    <div className="card" key={i.ref}>
-                      <div className="row"><span className="id">{i.ref}</span><span className="name">{i.name}</span><Pill v={i.source} /></div>
-                      {i.peerSupport && <div className="conf">peers: {i.peerSupport}{i.blueprintItemId ? ` · ${i.blueprintItemId}` : ''}</div>}
-                      {i.approvers?.length > 0 && <div className="approvers">Approvers: {i.approvers.join(', ')}</div>}
-                      {i.evidence?.length > 0 && (
-                        <details>
-                          <summary>Evidence ({i.evidence.length})</summary>
-                          <ul className="ev">
-                            {i.evidence.map((e, n) => (
-                              <li key={n}>“{e.quote}” —{' '}
-                                {e.docId && e.docId !== 'CUSTOMER' ? <button onClick={() => openDoc(e.docId, e.quote)}>{e.docId}</button> : (e.docId || 'customer')}
-                              </li>
-                            ))}
-                          </ul>
-                        </details>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <section key={k} className="schedule-col" aria-label={KIND[k]}>
+                  <h4 className="col-head">{KIND[k]} <span className="mono">{items.length}</span></h4>
+                  <ol className="entries">
+                    {items.map(i => (
+                      <li className={`entry${i.source === 'DERIVED' ? ' cloud' : ''}`} key={i.ref}>
+                        <div className="entry-head">
+                          <span className="mono entry-id">{i.ref}</span>
+                          <h5 className="entry-name">{i.name}</h5>
+                          <span className="entry-status"><T v={i.source} /></span>
+                        </div>
+                        {i.peerSupport && <p className="entry-line"><span>Peers</span> <b className="mono">{i.peerSupport}</b>{i.blueprintItemId ? <> · <span className="mono">{i.blueprintItemId}</span></> : ''}</p>}
+                        {i.approvers?.length > 0 && <p className="entry-line"><span>Approvers</span> {i.approvers.join(', ')}</p>}
+                        {i.evidence?.length > 0 && (
+                          <details className="evidence">
+                            <summary>Evidence <span className="mono">{i.evidence.length}</span></summary>
+                            <ol>
+                              {i.evidence.map((e, n) => (
+                                <li key={n}>
+                                  {e.docId && e.docId !== 'CUSTOMER'
+                                    ? <Callout top={n + 1} bottom={e.docId} onClick={() => openDoc(e.docId, e.quote)} title={`Open ${e.docId} at this quote`} />
+                                    : <Callout top={n + 1} bottom="NOTES" title="From the customer's notes" />}
+                                  <Verified>{e.quote}</Verified>
+                                </li>
+                              ))}
+                            </ol>
+                          </details>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                </section>
               )
             })}
           </div>
-        </Art>
+        </Sub>
       )}
 
       {run.config && (
-        <Art title="Configuration (mock iCIMS)" badge={<a className="small-link" href={`${base}/config.json`} target="_blank" rel="noreferrer">open config.json</a>}>
+        <Sub title="Configuration" badge={<><Tag kind="muted">Mock iCIMS format</Tag> <a className="small-link" href={`${base}/config.json`} target="_blank" rel="noreferrer">config.json <Icon name="open" size={13} /></a></>}>
           <pre className="json">{JSON.stringify(run.config, null, 2)}</pre>
-        </Art>
+        </Sub>
       )}
 
       {run.validation && <Validation v={run.validation} revisions={run.revisions} />}
@@ -304,20 +336,32 @@ function Artifacts({ run, send, openDoc }) {
       {run.uat && <Uat uat={run.uat} cov={run.uatCoverage} />}
 
       {(['WAITING_FOR_APPROVAL', 'COMPLETED', 'REJECTED'].includes(run.status) || run.steps?.some(x => x.tool === 'handover' && x.status === 'DONE')) && (
-        <Art id="art-handover" title="Handover">
-          <p className="row">
-            <a href={`${base}/handover.md`} target="_blank" rel="noreferrer">handover.md</a> ·
-            <a href={`${base}/config.json`} target="_blank" rel="noreferrer">config.json</a>
-          </p>
-          {run.openItems?.length > 0 && <>
-            <h3>Open items <small>{run.openItems.length}</small></h3>
-            <ul>{run.openItems.map((o, n) => <li key={n}>{o}</li>)}</ul>
-          </>}
-          {run.status === 'WAITING_FOR_APPROVAL' && <Approval send={send} />}
-          {['COMPLETED', 'REJECTED'].includes(run.status) && (
-            <p><Pill v={run.status}>{run.status === 'COMPLETED' ? 'approved by consultant' : 'rejected by consultant'}</Pill> {run.approvalComment}</p>
-          )}
-        </Art>
+        <Sub id="art-handover" title="Handover">
+          <div className="handover">
+            <div>
+              <p className="field-row">
+                <a href={`${base}/handover.md`} target="_blank" rel="noreferrer">handover.md <Icon name="open" size={13} /></a>
+                <a href={`${base}/config.json`} target="_blank" rel="noreferrer">config.json <Icon name="open" size={13} /></a>
+              </p>
+              {run.openItems?.length > 0 && <>
+                <h4 className="col-head">Open items <span className="mono">{run.openItems.length}</span></h4>
+                <ol className="open-items">{run.openItems.map((o, n) => <li key={n}>{o}</li>)}</ol>
+              </>}
+              {run.status === 'WAITING_FOR_APPROVAL' && <Approval send={send} />}
+            </div>
+            {run.status === 'COMPLETED' && (
+              <div className="stamp-wrap">
+                <Stamp title="Approved for implementation" line={run.approvalComment || 'Checked by consultant'}
+                       date={run.updatedAt ? new Date(run.updatedAt).toLocaleDateString(undefined, { dateStyle: 'medium' }) : ''} />
+              </div>
+            )}
+            {run.status === 'REJECTED' && (
+              <div className="stamp-wrap">
+                <Stamp tone="reject" title="Rejected" line={run.approvalComment || 'Returned by consultant'} />
+              </div>
+            )}
+          </div>
+        </Sub>
       )}
     </>
   )
@@ -342,87 +386,90 @@ function Questions({ run, send }) {
   }
 
   return (
-    <Art id="art-questions" title="Questions for the customer" badge={<small>{run.questions.length}</small>}>
-      {run.questions.length === 0 && <p className="hint">The agent had nothing to ask.</p>}
-      <form onSubmit={submit}>
-        {run.questions.map(q => (
-          <fieldset key={q.id} className="card q" disabled={!waiting}>
-            <legend className="row"><span className="id">{q.id}</span><Pill v={q.findingType} /> <b>{q.itemName}</b>
-              {q.peerSupport && <span className="hint" style={{ margin: 0 }}>peers: {q.peerSupport}</span>}</legend>
-            <p style={{ margin: '4px 0' }}>{q.question}</p>
-            {q.why && <p className="hint">Why: {q.why}</p>}
-            {waiting && <>
-              <div className="row">
-                {['INCLUDE', 'EXCLUDE', 'UNSURE'].map(c => (
-                  <label key={c} className="radio">
-                    <input type="radio" name={`q-${q.id}`} checked={a[q.id]?.choice === c} onChange={() => setQ(q.id, { choice: c })} /> {c.toLowerCase()}
-                  </label>
-                ))}
-              </div>
-              <input type="text" aria-label={`Note for ${q.id}`} placeholder="Optional note" value={a[q.id]?.note || ''}
-                     onChange={e => setQ(q.id, { note: e.target.value })} style={{ width: '100%', marginTop: 6 }} />
-            </>}
-          </fieldset>
-        ))}
+    <Sub id="art-questions" title="Questions for the customer" badge={<span className="mono">{run.questions.length}</span>}>
+      {run.questions.length === 0 && <p className="none">The agent had nothing to ask.</p>}
+      <form onSubmit={submit} className="questions">
+        <ol className="entries">
+          {run.questions.map(q => (
+            <li key={q.id} className="entry">
+              <fieldset disabled={!waiting}>
+                <legend className="entry-head">
+                  <span className="mono entry-id">{q.id}</span>
+                  <span className="entry-name">{q.itemName}</span>
+                  <span className="entry-status"><T v={q.findingType} /></span>
+                </legend>
+                <p className="q-text">{q.question}</p>
+                {q.why && <p className="entry-line"><span>Why</span> {q.why}</p>}
+                {waiting && <>
+                  <div className="choices" role="radiogroup" aria-label={`Decision for ${q.id}`}>
+                    {['INCLUDE', 'EXCLUDE', 'UNSURE'].map(c => (
+                      <label key={c} className={`choice${a[q.id]?.choice === c ? ' on' : ''}`}>
+                        <input type="radio" name={`q-${q.id}`} checked={a[q.id]?.choice === c} onChange={() => setQ(q.id, { choice: c })} /> {LABEL[c]}
+                      </label>
+                    ))}
+                  </div>
+                  <input type="text" className="q-note" aria-label={`Note for ${q.id}`} placeholder="Optional note"
+                         value={a[q.id]?.note || ''} onChange={e => setQ(q.id, { note: e.target.value })} />
+                </>}
+              </fieldset>
+            </li>
+          ))}
+        </ol>
         {waiting && run.questions.length > 0 && <>
-          <label className="stack">Paste the customer's reply <small className="hint">(optional; sent for every question you left without a choice, and the agent interprets it)</small>
-            <textarea value={reply} onChange={e => setReply(e.target.value)} style={{ minHeight: 100 }} />
+          <label className="field">Or paste the customer's reply
+            <span className="muted small">Sent for every question left without a choice; the agent interprets it and marks those decisions AI-interpreted.</span>
+            <textarea value={reply} onChange={e => setReply(e.target.value)} />
           </label>
-          <button className="primary" disabled={sending}>{sending ? 'Sending…' : 'Send answers to the agent'}</button>
+          <button className="btn-issue" disabled={sending}>{sending ? 'Sending…' : 'Send answers to the agent'}</button>
         </>}
       </form>
-    </Art>
+    </Sub>
   )
 }
 
 function Validation({ v, revisions }) {
   const count = s => v.filter(x => x.severity === s).length
   return (
-    <Art title="Validation" badge={<>
-      <Pill v="PASS">{count('PASS')} pass</Pill> <Pill v="WARN">{count('WARN')} warn</Pill> <Pill v="FAIL">{count('FAIL')} fail</Pill>
+    <Sub title="Validation" badge={<>
+      <Tag kind="ink" icon="check">{count('PASS')} pass</Tag> <Tag kind="hold">{count('WARN')} warn</Tag> <Tag kind="redline" icon="cross">{count('FAIL')} fail</Tag>
     </>}>
-      {revisions > 0 && <p className="hint">The agent revised the configuration {revisions} time{revisions > 1 ? 's' : ''} to fix failed checks.</p>}
-      <table>
-        <thead><tr><th>Check</th><th>Result</th><th>Details</th></tr></thead>
+      {revisions > 0 && <p className="entry-line"><Delta n={revisions} /> The agent revised the configuration {revisions} time{revisions > 1 ? 's' : ''} and checked it again.</p>}
+      <table className="schedule">
+        <thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col">Details</th></tr></thead>
         <tbody>
           {v.map((x, n) => (
             <tr key={x.id || n}>
-              <td>{x.check}{x.ref && <div className="id">{x.ref}</div>}</td>
-              <td><Pill v={x.severity} />{x.autoFixable && <> <Pill v="EDGE">auto-fixable</Pill></>}</td>
+              <th scope="row">{x.check}{x.ref && <span className="mono small muted"> {x.ref}</span>}</th>
+              <td><T v={x.severity} />{x.autoFixable && <> <Tag kind="muted">Auto-fixable</Tag></>}</td>
               <td>{x.message}</td>
             </tr>
           ))}
         </tbody>
       </table>
-    </Art>
+    </Sub>
   )
 }
 
 function Uat({ uat, cov }) {
   return (
-    <Art title="UAT test cases" badge={<small>{uat.length}</small>}>
-      {cov && (
-        <div className="conf" style={{ maxWidth: 520 }}>
-          <div className="bar" role="img" aria-label={pct(cov.covered / Math.max(1, cov.total))}><i style={{ width: pct(cov.covered / Math.max(1, cov.total)) }} /></div>
-          {cov.covered}/{cov.total} requirements covered
-        </div>
-      )}
-      {cov?.uncovered?.length > 0 && <p className="warn-text">Not covered: {cov.uncovered.join(', ')}</p>}
-      <table>
-        <thead><tr><th>ID</th><th>Requirement</th><th>Type</th><th>Test</th><th>Expected</th></tr></thead>
+    <Sub title="UAT test cases" badge={<span className="mono">{uat.length}</span>}>
+      {cov && <Dimension share={cov.covered / Math.max(1, cov.total)} label={`${cov.covered}/${cov.total} requirements covered`} />}
+      {cov?.uncovered?.length > 0 && <p className="hold-note"><Icon name="pause" size={14} /> Not covered: {cov.uncovered.join(', ')}</p>}
+      <table className="schedule">
+        <thead><tr><th scope="col">ID</th><th scope="col">Req.</th><th scope="col">Type</th><th scope="col">Test</th><th scope="col">Expected</th></tr></thead>
         <tbody>
           {uat.map((t, n) => (
             <tr key={t.id || n}>
-              <td className="id">{t.id}</td>
-              <td className="id">{t.requirementRef}</td>
-              <td><Pill v={t.type} /></td>
+              <td className="mono">{t.id}</td>
+              <td className="mono">{t.requirementRef}</td>
+              <td><T v={t.type} /></td>
               <td><b>{t.title}</b><ol className="steps">{(t.steps || []).map((s, k) => <li key={k}>{s}</li>)}</ol></td>
               <td>{t.expected}</td>
             </tr>
           ))}
         </tbody>
       </table>
-    </Art>
+    </Sub>
   )
 }
 
@@ -432,11 +479,11 @@ function Approval({ send }) {
   const decide = async approved => { setSending(true); await send('approval', { approved, comment }); setSending(false) }
   return (
     <div className="approval">
-      <h3>Consultant approval</h3>
-      <textarea aria-label="Approval comment" placeholder="Comment (optional)" value={comment} onChange={e => setComment(e.target.value)} style={{ minHeight: 70 }} />
-      <div className="row">
-        <button className="primary" disabled={sending} onClick={() => decide(true)}>Approve handover</button>
-        <button disabled={sending} onClick={() => decide(false)}>Reject</button>
+      <h4 className="col-head">Consultant approval</h4>
+      <label className="field">Comment (optional)<textarea value={comment} onChange={e => setComment(e.target.value)} /></label>
+      <div className="field-row">
+        <button type="button" className="btn-issue" disabled={sending} onClick={() => decide(true)}>Approve and stamp</button>
+        <button type="button" className="btn-small" disabled={sending} onClick={() => decide(false)}><Icon name="cross" size={14} /> Reject</button>
       </div>
     </div>
   )
