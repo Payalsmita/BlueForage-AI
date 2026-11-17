@@ -186,11 +186,46 @@ function RunView({ run, send, openDoc }) {
         })}
       </ol>
 
+      <Impact run={run} steps={steps} />
       <Timeline steps={steps} />
       <Artifacts run={run} send={send} openDoc={openDoc} />
     </>
   )
 }
+
+/** Measured impact of this run. Only the manual baseline is an assumption, and it is labelled and editable. */
+function Impact({ run, steps }) {
+  const [baseline, setBaseline] = useState(16)
+  const agentSecs = steps.reduce((a, s) => a + (secs(s.startedAt, s.finishedAt) || 0), 0)
+  const items = run.finalItems || []
+  const by = src => items.filter(i => i.source === src).length
+  const fromPeers = by('PEER_CONFIRMED') + by('DERIVED')
+  const fixes = (run.validation || []).filter(c => c.autoFixable).length
+  if (!steps.length) return null
+  return (
+    <Card size="sm" className="mb-4 border-t-2 border-t-primary">
+      <CardContent className="grid gap-3">
+        <H2 className="mb-0">Impact of this run</H2>
+        <div className="flex flex-wrap gap-x-8 gap-y-3">
+          <Metric big={dur(agentSecs)} label="agent working time (excludes waiting for the consultant)" />
+          <Metric big={items.length || '—'} label={`config items produced · ${by('CUSTOMER_STATED')} stated by customer, ${fromPeers} filled in from peer evidence, ${by('CUSTOM')} customer-specific`} />
+          <Metric big={run.questions?.length ?? '—'} label="questions sent to the consultant (instead of a blank form)" />
+          <Metric big={run.revisions ?? 0} label={`self-revisions after validation${fixes ? ` · ${fixes} auto-fixable checks` : ''}`} />
+          <Metric big={run.uatCoverage ? `${run.uatCoverage.covered}/${run.uatCoverage.total}` : '—'} label={`requirements covered by ${run.uat?.length || 0} generated UAT tests`} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2 border-t pt-3 text-xs text-muted-foreground">
+          <Label htmlFor="baseline" className="text-muted-foreground">Manual baseline (assumption, edit it):</Label>
+          <Input id="baseline" type="number" min="1" value={baseline} onChange={e => setBaseline(+e.target.value)} className="h-7 w-20" />
+          <span>consultant hours to draft the same config + UAT by hand, vs <b className="text-foreground">{dur(agentSecs)}</b> of agent drafting plus the consultant's review.</span>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+const Metric = ({ big, label }) => (
+  <div className="grid max-w-56 gap-0.5"><b className="font-heading text-2xl">{big}</b><span className="text-xs text-muted-foreground">{label}</span></div>
+)
 
 function Timeline({ steps }) {
   const box = useRef(null)

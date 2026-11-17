@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
-import { api, groupPath } from './api.js'
+import { api, groupPath, pct } from './api.js'
 import Blueprint from './Blueprint.jsx'
 import { Accuracy, GapCheck, Sources, Stat } from './Panels.jsx'
 import Agent from './Agent.jsx'
@@ -194,7 +194,45 @@ function Overview({ groups, onStart }) {
         <Stat big={industries} label="industries" />
         <Stat big={docs} label="past implementation documents" />
       </div>
+      <ProofRow groups={groups} />
       <Button size="lg" onClick={onStart}>Start →</Button>
+    </>
+  )
+}
+
+/** Accuracy against the answer keys (no AI calls) and the latest agent run, so the proof is on the first page. */
+function ProofRow({ groups }) {
+  const [proof, setProof] = useState(null)
+  useEffect(() => {
+    if (!groups.length) return
+    Promise.all(groups.map(x => api(`/api/eval/${groupPath(x)}`).catch(() => null))).then(async reps => {
+      const ok = reps.filter(r => r?.docsEvaluated > 0)
+      const recall = (list, kind) => {
+        const ks = ok.flatMap(r => (r[list] || []).filter(k => k.kind === kind))
+        const exp = ks.reduce((a, k) => a + k.expected, 0)
+        return exp ? ks.reduce((a, k) => a + k.matched, 0) / exp : null
+      }
+      const runs = await api('/api/runs').catch(() => [])
+      const latest = runs.find(r => ['WAITING_FOR_APPROVAL', 'COMPLETED'].includes(r.status))
+      const run = latest && await api(`/api/runs/${latest.id}`).catch(() => null)
+      setProof({ n: ok.length, recall, run })
+    })
+  }, [groups.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (!proof?.n) return null
+  const { recall, run } = proof
+  const agentSecs = run ? run.steps.reduce((a, s) => a + Math.max(0, (Date.parse(s.finishedAt) - Date.parse(s.startedAt)) / 1000 || 0), 0) : 0
+  return (
+    <>
+      <h3 className="mb-2 font-heading text-base font-semibold">Proof, measured</h3>
+      <div className="mb-5 flex flex-wrap gap-4">
+        {['STAGE', 'ROLE', 'APPROVAL_RULE'].map(k => recall('scores', k) != null && (
+          <Stat key={k} big={pct(recall('scores', k))} label={`${k.toLowerCase().replace('_', ' ')} recall vs answer keys (${proof.n} scenarios)`} />
+        ))}
+        {recall('withoutSelfCheck', 'ROLE') != null && recall('withoutSelfCheck', 'ROLE') < recall('scores', 'ROLE') && (
+          <Stat big={`${pct(recall('withoutSelfCheck', 'ROLE'))} → ${pct(recall('scores', 'ROLE'))}`} label="role recall before → after the AI's self-check pass" />
+        )}
+        {run && <Stat big={agentSecs < 60 ? `${Math.round(agentSecs)}s` : `${Math.floor(agentSecs / 60)}m ${Math.round(agentSecs % 60)}s`} label={`agent time from kickoff notes to handover for ${run.customerName} (${run.finalItems?.length || 0} config items, ${run.uat?.length || 0} UAT tests)`} />}
+      </div>
     </>
   )
 }
