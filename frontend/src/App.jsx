@@ -1,7 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { cn } from '@/lib/utils'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { api, groupPath } from './api.js'
 import Blueprint from './Blueprint.jsx'
-import { Accuracy, GapCheck, Sources } from './Panels.jsx'
+import { Accuracy, GapCheck, Sources, Stat } from './Panels.jsx'
 import Agent from './Agent.jsx'
 
 /** The guided demo flow: one numbered step per page. */
@@ -30,7 +38,6 @@ export default function App() {
   const [force, setForce] = useState(false)
   const [bp, setBp] = useState(null)
   const [doc, setDoc] = useState(null) // { id, text, quote }
-  const dialog = useRef(null)
   const g = groups[sel]
   const gKey = g ? `${g.industry}/${g.workflowType}` : ''
 
@@ -71,12 +78,6 @@ export default function App() {
     try { setDoc({ id, quote, text: await api(`/api/docs/${encodeURIComponent(id)}/text`) }) } catch (e) { fail(e) }
   }
 
-  useEffect(() => {
-    if (!doc) return
-    dialog.current.showModal()
-    dialog.current.querySelector('mark')?.scrollIntoView({ block: 'center' })
-  }, [doc])
-
   const generate = () => run(`Generating blueprint from ${g.docCount} implementations`, async () => {
     setBp(await api(`/api/blueprints/${groupPath(g)}?force=${force}`, { method: 'POST' }))
   })
@@ -90,44 +91,44 @@ export default function App() {
     const next = STEPS[n + 1]
     return (
       <section key={id} id={`page-${id}`} aria-labelledby={`step-${id}`} hidden={step !== id}>
-        <h2 className="page-title"><span className="stepnum">{n}</span>{STEPS[n].label}</h2>
-        <p className="explain"><b>What's happening here:</b> {STEPS[n].explain}</p>
+        <h2 className="mb-2 flex items-center gap-2.5 font-heading text-xl font-semibold"><StepNum n={n} />{STEPS[n].label}</h2>
+        <Alert className="mb-5"><AlertDescription className="text-foreground"><b>What's happening here:</b> {STEPS[n].explain}</AlertDescription></Alert>
         {children}
-        {next && id !== 'overview' && <div className="next"><button className="primary" onClick={() => go(next.id)}>Next: {next.label} →</button></div>}
+        {next && id !== 'overview' && <div className="mt-7 flex justify-end border-t pt-4"><Button onClick={() => go(next.id)}>Next: {next.label} →</Button></div>}
       </section>
     )
   }
 
   return (
     <>
-      <header className="top">
-        <h1>BlueprintForge AI <span>evidence-backed industry blueprints</span></h1>
-        <div className="controls">
-          <select aria-label="Scenario" value={sel} onChange={e => setSel(+e.target.value)}>
-            {groups.map((x, i) => <option key={i} value={i}>{x.industry} · {x.workflowType} ({x.docCount})</option>)}
-          </select>
-          <label className="row" style={{ fontSize: 13, color: 'var(--muted)' }}>
-            <input type="checkbox" checked={force} onChange={e => setForce(e.target.checked)} /> re-extract
-          </label>
-          <button className="primary" disabled={busy || !g} onClick={generate}>Generate blueprint</button>
+      <header className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b bg-card px-6 py-3.5 max-sm:px-4">
+        <h1 className="font-heading text-lg font-bold">BlueprintForge AI <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">evidence-backed industry blueprints</span></h1>
+        <div className="ml-auto flex flex-wrap items-center gap-3 max-sm:ml-0">
+          <NativeSelect aria-label="Scenario" value={sel} onChange={e => setSel(+e.target.value)} className="w-auto">
+            {groups.map((x, i) => <NativeSelectOption key={i} value={i}>{x.industry} · {x.workflowType} ({x.docCount})</NativeSelectOption>)}
+          </NativeSelect>
+          <Label className="text-muted-foreground">
+            <Checkbox checked={force} onCheckedChange={v => setForce(!!v)} /> re-extract
+          </Label>
+          <Button disabled={busy || !g} onClick={generate}>Generate blueprint</Button>
         </div>
       </header>
-      <div className={`status${status.error ? ' error' : ''}`} role="status" aria-live="polite">{status.msg}</div>
-      <div className="layout">
-        <nav className="rail" aria-label="Demo steps">
-          <ol>
+      <div className={cn('min-h-5 px-6 pt-2 text-xs max-sm:px-4', status.error ? 'text-destructive' : 'text-muted-foreground')} role="status" aria-live="polite">{status.msg}</div>
+      <div className="grid items-start lg:grid-cols-[240px_minmax(0,1fr)]">
+        <nav className="p-4 lg:sticky lg:top-0 max-lg:overflow-x-auto" aria-label="Demo steps">
+          <ol className="grid gap-1 max-lg:auto-cols-max max-lg:grid-flow-col">
             {STEPS.map((s, n) => (
               <li key={s.id}>
-                <button id={`step-${s.id}`} aria-current={step === s.id ? 'step' : undefined}
-                        className={n < idx ? 'done' : ''} onClick={() => go(s.id)}>
-                  <span className="stepnum">{n}</span>
-                  <span className="lbl">{s.label}<small>{s.sub}</small></span>
-                </button>
+                <Button variant="ghost" id={`step-${s.id}`} aria-current={step === s.id ? 'step' : undefined} onClick={() => go(s.id)}
+                        className="h-auto w-full items-start justify-start gap-2.5 border border-transparent px-2.5 py-2 text-left whitespace-normal aria-[current=step]:border-border aria-[current=step]:bg-card aria-[current=step]:shadow-[inset_3px_0_0_var(--primary)]">
+                  <StepNum n={n} state={step === s.id ? 'current' : n < idx ? 'done' : ''} />
+                  <span className="grid font-semibold">{s.label}<small className="font-normal text-muted-foreground max-lg:hidden">{s.sub}</small></span>
+                </Button>
               </li>
             ))}
           </ol>
         </nav>
-        <main>
+        <main className="min-w-0 px-6 pt-5 pb-12 text-sm max-sm:px-4">
           {page('overview', <Overview groups={groups} onStart={() => go('sources')} />)}
           {g && <>
             {page('sources', <Sources key={gKey} g={g} run={run} busy={busy} openDoc={openDoc} onUploaded={loadGroups} fail={fail} />)}
@@ -138,11 +139,27 @@ export default function App() {
           </>}
         </main>
       </div>
-      <dialog ref={dialog} onClose={() => setDoc(null)}>
-        <header><strong>{doc?.id}</strong><button className="small" style={{ marginLeft: 'auto' }} onClick={() => dialog.current.close()}>Close</button></header>
-        {doc && <pre><Highlighted text={doc.text} quote={doc.quote} /></pre>}
-      </dialog>
+      <Dialog open={!!doc} onOpenChange={o => { if (!o) setDoc(null) }}>
+        <DialogContent className="max-h-[85vh] sm:max-w-3xl">
+          <DialogHeader><DialogTitle>{doc?.id}</DialogTitle></DialogHeader>
+          {doc && (
+            <pre ref={el => el?.querySelector('mark')?.scrollIntoView({ block: 'center' })}
+                 className="max-h-[70vh] overflow-auto font-mono text-xs/relaxed whitespace-pre-wrap">
+              <Highlighted text={doc.text} quote={doc.quote} />
+            </pre>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
+  )
+}
+
+/** Numbered circle used by the step rail and page titles. */
+function StepNum({ n, state }) {
+  return (
+    <span className={cn('inline-grid size-6 flex-none place-items-center rounded-full border bg-card text-xs font-bold text-muted-foreground',
+      state === 'current' && 'border-primary bg-primary text-primary-foreground',
+      state === 'done' && 'border-emerald-200 bg-emerald-100 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300')}>{n}</span>
   )
 }
 
@@ -160,20 +177,24 @@ function Overview({ groups, onStart }) {
   const industries = new Set(groups.map(x => x.industry)).size
   return (
     <>
-      <p className="pitch">
+      <p className="max-w-3xl text-sm/relaxed">
         Every new customer's hiring workflow gets configured from scratch, even though the same industry has been done dozens of times.
         <b> BlueprintForge AI</b> turns past implementations into an evidence-backed industry blueprint, then uses an
         <b> Implementation Agent</b> to take a new customer from kickoff notes to a validated configuration, with a consultant approving every decision.
       </p>
-      <ol className="pipeline" aria-label="How it works">
-        {PIPELINE.map(([t, s], n) => <li key={n}><b>{t}</b><span>{s}</span></li>)}
+      <ol className="my-5 flex flex-wrap gap-7" aria-label="How it works">
+        {PIPELINE.map(([t, s], n) => (
+          <li key={n} className="relative max-w-56 flex-[1_1_140px] after:absolute after:top-1/2 after:-right-5.5 after:-translate-y-1/2 after:font-bold after:text-muted-foreground after:content-['→'] last:after:hidden">
+            <Card size="sm" className="h-full border-t-2 border-t-primary"><CardContent className="grid gap-1"><b>{t}</b><span className="text-xs text-muted-foreground">{s}</span></CardContent></Card>
+          </li>
+        ))}
       </ol>
-      <div className="stats">
-        <div className="stat"><div className="big">{groups.length}</div><div>scenarios (industry × role)</div></div>
-        <div className="stat"><div className="big">{industries}</div><div>industries</div></div>
-        <div className="stat"><div className="big">{docs}</div><div>past implementation documents</div></div>
+      <div className="mb-4 flex flex-wrap gap-4">
+        <Stat big={groups.length} label="scenarios (industry × role)" />
+        <Stat big={industries} label="industries" />
+        <Stat big={docs} label="past implementation documents" />
       </div>
-      <button className="primary big-btn" onClick={onStart}>Start →</button>
+      <Button size="lg" onClick={onStart}>Start →</Button>
     </>
   )
 }
@@ -181,5 +202,5 @@ function Overview({ groups, onStart }) {
 function Highlighted({ text, quote }) {
   const at = quote ? text.toLowerCase().indexOf(quote.toLowerCase()) : -1
   if (at < 0) return text
-  return <>{text.slice(0, at)}<mark>{text.slice(at, at + quote.length)}</mark>{text.slice(at + quote.length)}</>
+  return <>{text.slice(0, at)}<mark className="bg-yellow-200 text-black">{text.slice(at, at + quote.length)}</mark>{text.slice(at + quote.length)}</>
 }
