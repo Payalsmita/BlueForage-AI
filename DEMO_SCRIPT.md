@@ -73,7 +73,7 @@ On the **Overview** page, point at **Proof, measured**: stage, role and approval
    > "It also spots where peers run the same steps in a different order. Here one retailer runs the background check *after* the offer."
 2. Open **Sources** and show the upload box:
    > "Real project docs come in as PDF, Word or PowerPoint. Microsoft MarkItDown converts them, and they feed the same pipeline."
-3. **Add an industry live (reusability beat).** In **Sources**, upload 2–3 docs with a new industry name (e.g. `logistics`, workflow `warehouse-associate`). The scenario appears in the dropdown; click **Generate blueprint**.
+3. **Add an industry live (reusability beat).** In **Sources**, upload the three docs in `demo/uploads/` one at a time: industry `logistics`, workflow `warehouse-associate`, country `US` for LOG-001/002 and `UK` for LOG-003. The new scenario appears in the dropdown; click **Generate blueprint** (about 30 s). Point at **Right to Work Check: UK 1/1, US 0/2** and the **Drug Screen vs Background Check** order difference.
    > "No code, no prompt changes, no per-industry rules. The same pipeline, evidence checks and agent work for any industry that has past implementations."
 4. Mention the reach: 7 industries and 35 implementations today. It runs on any OpenAI-compatible model, exports to an iCIMS-style config, and the whole pipeline is exposed as an MCP server, so Claude or Copilot can drive it.
 
@@ -84,6 +84,8 @@ On the **Overview** page, point at **Proof, measured**: stage, role and approval
 ---
 
 ## Backup plan
+
+- **Reset after rehearsing the logistics beat:** `git checkout docs/manifest.csv && rm docs/LOG-00?.md data/blueprints/logistics_* data/extractions/LOG-00?.json`, then restart the backend.
 
 | If… | Do this |
 |---|---|
