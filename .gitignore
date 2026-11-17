@@ -1,6 +1,3 @@
 data/
 .env
 .DS_Store
-.impeccable/review/
-.impeccable/direction-payload.json
-.impeccable/brief-body.md
